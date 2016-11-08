@@ -1,0 +1,24 @@
+config.DH2d0P/nacltest.c:1:32: fatal error: crypto_hash_sha512.h: No such file or directory
+ #include "crypto_hash_sha512.h"
+                                ^
+compilation terminated.
+Package libnl-route-3.0 was not found in the pkg-config search path.
+Perhaps you should add the directory containing `libnl-route-3.0.pc'
+to the PKG_CONFIG_PATH environment variable
+No package 'libnl-route-3.0' found
+Package libnl-route-3.0 was not found in the pkg-config search path.
+Perhaps you should add the directory containing `libnl-route-3.0.pc'
+to the PKG_CONFIG_PATH environment variable
+No package 'libnl-route-3.0' found
+config.DH2d0P/libnlroutetest.c:1:32: fatal error: netlink/route/link.h: No such file or directory
+ #include <netlink/route/link.h>
+                                ^
+compilation terminated.
+config.DH2d0P/ztest.c:1:18: fatal error: zlib.h: No such file or directory
+ #include "zlib.h"
+                  ^
+compilation terminated.
+config.DH2d0P/clitest.c:2:20: fatal error: libcli.h: No such file or directory
+ #include <libcli.h>
+                    ^
+compilation terminated.
