@@ -20,7 +20,7 @@ char *trafgen_syn_cfg = "{"
 			"%s, " 				// Destination/Cilovy port 																			!
 			"drnd(4), "			// Sequence number/Sekvencni cislo 																	!
 			"const32(0), "			// Acknowledgment number/ACK cislo 																!
-			"const16((0x5 << 12) | (1 << 1)), "// Data offset/Delka TCP zahlavia (v 32b slovech) + priznak SYN						TCP header
+			"const16((0x5 << 12) | (1 << 1)), "// Header length(Data offset)/Delka TCP zahlavi (v 32b slovech) + priznak SYN		TCP header
 			"const16(512), "		// Window Size/Velikost okna TCP																!
 			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)										!
 			"const16(0), "			// Urgent pointer																				!
@@ -135,7 +135,7 @@ char *trafgen_dns_cfg = "{"
 			"0x00, "			// End of name (DNS name is encoded)/Ukonceni DNS jmena												|
 			"const16(1), "			// Question type - A - host record/Typ otazky - A - zaznam o hostovi							DNS query fields
 			"const16(1), "			// Question class - IN(Internet)/Trida otazky - IN(Internet)									|
-			"fill(0x00, %u), "		// Výplň
+			"fill(0x00, %u), "		// Filling/Vypln
 			"}";
 
 char *trafgen_dhcp_cfg = "{"
