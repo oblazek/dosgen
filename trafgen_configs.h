@@ -44,7 +44,7 @@ char *trafgen_rst_cfg = "{"
 			"%s, " 				// Destination/Cilovy port                                                                          ! 
 			"drnd(4), "			// Sequence number/Sekvencni cislo                                                                  ! 
 			"const32(0), "			// Acknowledgment number/ACK cislo                                                              ! 
-			"const16((0x5 << 12) | (1 << 2)), "// Data offset/Delka TCP zahlavia (v 32b slovech) + príznak RST						TCP header
+			"const16((0x5 << 12) | (1 << 2)), "// Data offset/Delka TCP zahlavia (v 32b slovech) + priznak RST						TCP header
 			"const16(512), "		// Window Size/Velikost okna TCP                                                                !
 			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)                                        !
 			"const16(0), "			// Urgent pointer																				!
