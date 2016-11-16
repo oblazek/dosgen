@@ -7,8 +7,10 @@ void setup_optarg()
     optopt = 0;
 }
 
-/* Funkcia na zmenu formátu DNS mena (www.google.com -> 0x03,"www",0x06,"google",0x03,"com")
-Pôvodne prevzatá z http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/ , následne upravená */
+/* Funkction for chaning DNS name i.e. "www.google.com" to '0x03,"www",0x06,"google",0x03,"com"'
+Originally took over from http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/, then edited to:
+Funkce pro zmenu DNS jmena: "www.google.com" na '0x03,"www",0x06,"google",0x03,"com"'
+Puvodne prevzata z vyse uvedeneho serveru, nasledne zmenena na: */
 void ChangetoDnsNameFormat(unsigned char* dns,const unsigned char* host)
 {
     int lock = 0 , i;
@@ -18,11 +20,12 @@ void ChangetoDnsNameFormat(unsigned char* dns,const unsigned char* host)
     {
         if(host[i]=='.')
         {
-
-            dns += sprintf(dns, "0x%02x,\"", i-lock);
+			//%02x prints at least 2 digits, prepend with 0 if there are less/format %02x vytiskne alespon 2 cislice, nalepi 0 dopredu, pokud ma jen 1 cislici 
+            dns += sprintf(dns, "0x%02x,\"", i-lock); //i is holding 'dot' possition and 'lock' holds num of chars before 'dot' (www-3/google-6/com-3)/i udrzuje pozici tecky a lock udrzuje pocet znaku pred teckou
 
             for(; lock<i; lock++)
             {
+				//append chars from *host to *dns until you get to index i (where the 'dot' was)/prilepi znaky z *hosta do *dns dokud nenarazi na index i (krome)
                 *dns++=host[lock];
             }
             lock++;
@@ -35,28 +38,29 @@ void ChangetoDnsNameFormat(unsigned char* dns,const unsigned char* host)
 
 char * prepare_syn(const char *src_ip, const char *src_port, const char *dst_ip, const char *dst_port, const unsigned len)
 {
-    // Vytvorenie dočasného súboru
+    // Creating tmp file/Vytvoreni docasneho souboru
     char *cfg_file_name = "tmp.cfg";
+	// Opening with append/Otevreni s parametrem append
     FILE *cfg = fopen(cfg_file_name, "a");
+	// Testing if file was opened correctly/Testovani, zdali byl soubor spravne otevren
     if (cfg == NULL)
     {
         return "Failed to open config file";
     }
-    // Zápis vstupných argumentov do reťazca "trafgen_syn_cfg" a následné uloženie do dočasného súboru
+    // Writing input parms to "trafgen_syn_cfg" string and saving to tmp file/Zapis vstupnich argumentu do retezce "trafgen_syn_cfg" a ulozeni do docasneho souboru
     fprintf(cfg, trafgen_syn_cfg, 40+len, src_ip, dst_ip, src_port, dst_port, len);
+	// Closing tmp file/Zavreni docasneho souboru
     fclose(cfg);
 }
 
 char * prepare_rst(const char *src_ip, const char *src_port, const char *dst_ip, const char *dst_port, const unsigned len)
 {
-    // Vytvorenie dočasného súboru
     char *cfg_file_name = "tmp.cfg";
     FILE *cfg = fopen(cfg_file_name, "a");
     if (cfg == NULL)
     {
         return "Failed to open config file";
     }
-
     fprintf(cfg, trafgen_rst_cfg, 40+len, src_ip, dst_ip, src_port, dst_port, len);
     fclose(cfg);
 }
