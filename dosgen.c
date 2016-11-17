@@ -30,9 +30,11 @@ void print_help_and_die()
     exit(100);
 }
 
-void strreplace(char s[], char chr, char repl_chr)
+void str_replace(char s[], char chr, char repl_chr)
 {
+	//chr - char you want to replace with repl_chr/chr - char ktery chceme nahradit charem repl_chr
     int i=0;
+	//search until you get to the end of string/hledej dokud nenarazis na konec stringu
     while(s[i]!='\0')
     {
         if(s[i]==chr)
@@ -56,19 +58,25 @@ void syn_flood(int argc, char **argv)
 
     int c;
     opterr = 0;
-    while ((c = getopt(argc, argv, "d:s:D:S:p:h")) != -1)
+    
+	if (argc < 2) {
+		printf("\nYou have not specified enough arguments!\n -- Run again! --\n\n");
+		print_help_and_die();
+	}
+	// getopt() checks if following options were specified, ':' means that argument should follow options dsDSp/getopt() kontroluje zda byly specifikovany moznosti, ':' znamena, ze moznosti dsDSp by mel nasledovat nejaky argument
+	while ((c = getopt(argc, argv, "d:s:D:S:p:h")) != -1)
     {
         switch (c)
         {
         case 'd':
             dst_ip = optarg;
-            /* Zámena "." za "," pri zadávani IP adresy,
-            nutnosť pre Trafgen */
-            strreplace(dst_ip, '.', ',');
+            /* Changing "." to "," in typing in IP address - necessary for trafgen/Zmena "." za "," pri zadavani IP adresy,
+            nutne pro Trafgen */
+            str_replace(dst_ip, '.', ',');
             break;
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'D':
             dst_port = optarg;
@@ -83,11 +91,13 @@ void syn_flood(int argc, char **argv)
             print_help_and_die();
             break;
         default:
+			// If there was none of the above options specified, write to standard error output../Pokud nebyla specifikovana zadna z dostupnych moznosti, zapis do standartniho chyboveho vystupu 
+			fprintf(stderr, "\n[-%c] is not a valid argument!\n\n", optopt);
             print_help_and_die();
         }
     }
 
-// Náhodné generovanie
+// Generating unspecified options/Nahodne generovani nespecifikovanych moznosti
     if (dst_ip)
     {
         if (strcmp(src_ip, "rand") == 0)
@@ -116,7 +126,7 @@ void syn_flood(int argc, char **argv)
             sprintf(dst_port_buffer, "const16(%d)", atoi(dst_port));
             dst_port = dst_port_buffer;
         }
-        // Vytvorenie konfigurácie daného paketu
+        // Creating the configuration packet for trafgen/Vytvoreni konfigurace paketu pro trafgen
         char *err = prepare_syn(src_ip, src_port, dst_ip, dst_port, payload_len);
         if (err != NULL)
         {
@@ -125,7 +135,7 @@ void syn_flood(int argc, char **argv)
     }
     else
     {
-        printf("\nRequired argument missing\n");
+        printf("\nRequired argument dst_ip is missing\n\n");
         print_help_and_die();
     }
 }
@@ -149,11 +159,11 @@ void rst_flood(int argc, char **argv)
         {
         case 'd':
             dst_ip = optarg;
-            strreplace(dst_ip, '.', ',');
+            str_replace(dst_ip, '.', ',');
             break;
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'D':
             dst_port = optarg;
@@ -172,7 +182,7 @@ void rst_flood(int argc, char **argv)
         }
     }
 
-// Náhodné generovanie
+// Generating unspecified options/Nahodne generovani nespecifikovanych moznosti
     if (dst_ip)
     {
         if (strcmp(src_ip, "rand") == 0)
@@ -236,11 +246,11 @@ void udp_flood(int argc, char **argv)
         {
         case 'd':
             dst_ip = optarg;
-            strreplace(dst_ip, '.', ',');
+            str_replace(dst_ip, '.', ',');
             break;
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'D':
             dst_port = optarg;
@@ -320,11 +330,11 @@ void icmp_flood(int argc, char **argv)
         {
         case 'd':
             dst_ip = optarg;
-            strreplace(dst_ip, '.', ',');
+            str_replace(dst_ip, '.', ',');
             break;
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'p':
             payload_len = atoi(optarg);
@@ -376,11 +386,11 @@ void arp_flood(int argc, char **argv)
         {
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'd':
             dst_ip = optarg;
-            strreplace(dst_ip, '.', ',');
+            str_replace(dst_ip, '.', ',');
             break;
 
         case 'p':
@@ -437,11 +447,11 @@ void dns_flood(int argc, char **argv)
         {
         case 'd':
             dst_ip = optarg;
-            strreplace(dst_ip, '.', ',');
+            str_replace(dst_ip, '.', ',');
             break;
         case 's':
             src_ip = optarg;
-            strreplace(src_ip, '.', ',');
+            str_replace(src_ip, '.', ',');
             break;
         case 'S':
             src_port = optarg;
