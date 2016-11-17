@@ -25,5 +25,5 @@ dosgen: libdos.a dosgen.c
 clean:
 	rm *.o
 	rm *.a
-
+	rm ./dosgen
 
