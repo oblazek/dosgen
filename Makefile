@@ -20,7 +20,7 @@ libtrafgen.a:
 dosgen: libdos.a dosgen.c
 	
 	$(CC) $(CFLAGS) -o $@ dosgen.c $(LIBS)
-				#--static
+#--static
 
 clean:
 	rm *.o
