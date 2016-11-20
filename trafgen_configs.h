@@ -176,5 +176,30 @@ char *trafgen_dhcp_cfg = "{"
 			"fill(0x00, %u), "		// Filling/Vypln
 			"}";
 
+char *trafgen_http_get_cfg = "{"
+			"fill(0xff, 6), " 		 // Destination MAC address/Cilova MAC adresa                                                   /
+			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa												MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4											/
+			"0b01000101, 0, "		// IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS 			x
+			"const16(%u), "			// Overall length (IP + TCP)/Celkova delka (IP + TCP) 											x
+			"drnd(2), "			// IPv4 identificator/IPv4 identifikator															x
+			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat										x
+ 			"64, "				// TTL (Time to Live)																				IP header
+			"0x06, "			// Used protocol, 0x06 in HEX means TCP protocol/Protokol, hodnota 0x06 v hexa soustave znaci TCP	x
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)										x
+			"%s, "				// Source IP/Zdrojova IP adresa																		x
+			"%s, " 				// Destination IP/Cilova IP adresa																	x
+			"drnd(2), "			// Source port/Zdrojovy port 																		!
+			"const16(80) " 		// Destination/Cilovy port 																			!
+			"drnd(4), "			// Sequence number/Sekvencni cislo 																	!
+			"const32(0), "			// Acknowledgment number/ACK cislo 																!
+			"const16((0x5 << 12) | (1 << 1)), "// Header length(Data offset)/Delka TCP zahlavi (v 32b slovech) + priznak SYN		TCP header --- je treba zmenit..
+			"const16(512), "		// Window Size/Velikost okna TCP																!
+			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)										!
+			"const16(0), "			// Urgent pointer																				!
+			"GET %s HTTP/1.1\r\n, "
+			"Host: %s\r\n, "
+			"}";
+
 #endif
 
