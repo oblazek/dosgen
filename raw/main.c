@@ -6,10 +6,12 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <netinet/in_systm.h>
+#include <netinet/in.h>
 #include <errno.h> //strerr
 //#include <sys/types.h>
 #include <netdb.h>
-#include "../dosgen/dosgen/trafgen/csum.h"
+#include "../trafgen/csum.h"
 
 void process_packet(unsigned char*, int, struct in_addr *dst_ip);
 void print_ip_header(unsigned char*, int);
@@ -17,6 +19,7 @@ void print_tcp_header(unsigned char*, int);
 void hostname_toip(char *, struct in_addr *dst_ip);
 int get_local_ip(char *);
 void receive_ack(struct in_addr *dst_ip);
+unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 
 int sock_raw;
 FILE *logfile;
@@ -25,7 +28,7 @@ struct sockaddr_in source, dest;
 
 
 //For checksum
-struct pseudo_header {
+struct psd_tcp {
     unsigned int src_address;
     unsigned int dst_address;
     unsigned char placeholder;
@@ -52,18 +55,6 @@ int main(int argc, char *argv[])
         printf("Socket created.\n");
     }
 
-    char packet_to_send[4096];
-
-
-    //IP header
-    struct iphdr *iph = (struct iphdr *) packet_to_send;
-
-    //TCP header
-    struct tcphdr *tcph = (struct tcphdr *) (packet_to_send + sizeof(struct ip));
-
-    struct sockaddr_in dest;
-    struct pseudo_header pshdr;
-
     char *dst = argv[1];
 
     if(argc < 2)
@@ -89,49 +80,53 @@ int main(int argc, char *argv[])
     }
 
     int source_port = 55555;
-    char source_ip[20] = "10.0.0.40";
+    char source_ip[20] = "10.0.0.41";
     //get_local_ip(source_ip);
 
     printf("Local ip is: %s\n", source_ip);
 
-    //Zero out the packet memory area
-    memset(packet_to_send, 0, 4096);
+    //IP header
+    struct ip iph;
+    struct tcphdr tcph;
+    struct sockaddr_in dest;
 
+    char *packet_to_send;
+    packet_to_send = (char *)malloc(60);
+
+    //Zero out the packet memory area
+    //memset(packet_to_send, 0, 4096);
     //Fill in the IP header
-    iph->ihl = 5;
-    iph->version = 4;
-    iph->tos = 0;
-    iph->tot_len = sizeof(struct ip) + sizeof(struct tcphdr);
-    iph->id = htons(12345);
-    iph->frag_off = 0;
-    iph->ttl = 64;
-    iph->protocol = IPPROTO_TCP;
-    iph->check = 0; //Will be calculated afterwards
-    iph->saddr = inet_addr(source_ip);
-    iph->daddr = dst_ip.s_addr;
+    iph.ip_hl = 5;
+    iph.ip_v = 4;
+    iph.ip_tos = 0;
+    iph.ip_len = sizeof(struct ip) + sizeof(struct tcphdr);
+    iph.ip_id = htons(12345);
+    iph.ip_off = 0;
+    iph.ip_ttl = 64;
+    iph.ip_p = IPPROTO_TCP;
+    iph.ip_sum = 0; //Will be calculated afterwards
+    iph.ip_src.s_addr = inet_addr(source_ip);
+    iph.ip_dst.s_addr = dst_ip.s_addr;
 
     //Function that calculates checksum is implemented in trafgen
-    iph->check = csum((unsigned short *) packet_to_send, iph->tot_len >> 1);
+    iph.ip_sum = csum((unsigned short *) packet_to_send, iph.ip_len >> 1);
 
-    memcpy(&packet_to_send, &iph, sizeof(iph));
+    memcpy(packet_to_send, &iph, sizeof(iph));
 
     //Fill in the TCP header
-    tcph->source = htons(source_port);
-    tcph->dest = htons(80);
-    tcph->seq = htonl(0);
-    tcph->ack_seq = 0;
-    tcph->doff = sizeof(struct tcphdr) / 4;
-    tcph->urg = 0;
-    tcph->ack = 0;
-    tcph->psh = 0;
-    tcph->rst = 0;
-    tcph->syn = 1;
-    tcph->fin = 0;
-    tcph->window = htons(14600);
-    tcph->check = 0;
-    tcph->urg_ptr = 0;
+    tcph.th_sport = htons(55555);
+    tcph.th_dport = htons(80);
+    tcph.th_seq = htonl(0);
+    tcph.th_ack = htonl(0);
+    tcph.th_x2 = 0;
+    tcph.th_off = sizeof(struct tcphdr) / 4;
+    tcph.th_flags = TH_SYN;
+    tcph.th_win = htons(29200);
+    tcph.th_sum = 0;
+    tcph.th_urp = 0;
+    tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, sizeof(tcph));
 
-    memcpy(&packet_to_send, &tcph, sizeof(tcph));
+    memcpy((packet_to_send + sizeof(iph)), &tcph, sizeof(tcph));
 
     int one = 1;
 
@@ -158,32 +153,33 @@ int main(int argc, char *argv[])
 
     int port = 80;
     //dest - sockaddr_in
+    memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
-    dest.sin_addr.s_addr = dst_ip.s_addr;
-    dest.sin_port = htons(port);
+    dest.sin_addr.s_addr = iph.ip_dst.s_addr;
+
 
     //tcph->dest = htons(port);
     //tcph->check = 0;
 
-    pshdr.src_address = inet_addr(source_ip);
-    pshdr.dst_address = dst_ip.s_addr;
-    pshdr.placeholder = 0;
-    pshdr.protocol = IPPROTO_TCP;
-    pshdr.tcp_length = htons(sizeof(struct tcphdr));
+    //pshdr.src_address = inet_addr(source_ip);
+    //pshdr.dst_address = dst_ip.s_addr;
+    //pshdr.placeholder = 0;
+    //pshdr.protocol = IPPROTO_TCP;
+    //pshdr.tcp_length = htons(sizeof(struct tcphdr));
 
     //Copies mem area from tcph to pshdr.tcp
     //memcpy(&pshdr.tcp, tcph, sizeof(struct tcphdr));
 
-    tcph->check = csum((unsigned short *)&tcph, sizeof(struct tcphdr));
+
 
     //Send the packet out
-    if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(dest)) < 0)
+    if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
     {
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(0);
     }
 
-    pthread_join(thread1, NULL);
+    //pthread_join(thread1, NULL);
     printf("%d\n", th1ret);
 
     return 0;
@@ -315,4 +311,42 @@ void process_packet(unsigned char *buffer, int data_size, struct in_addr *dst_ip
 
 }
 
+unsigned short in_cksum(unsigned short *addr, int len)
+{
+    int nleft = len;
+    int sum = 0;
+    unsigned short *w = addr;
+    unsigned short answer = 0;
+
+    while (nleft > 1) {
+        sum += *w++;
+        nleft -= 2;
+    }
+
+    if (nleft == 1) {
+        *(unsigned char *) (&answer) = *(unsigned char *) w;
+        sum += answer;
+    }
+
+    sum = (sum >> 16) + (sum & 0xFFFF);
+    sum += (sum >> 16);
+    answer = ~sum;
+    return (answer);
+}
+
+unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len)
+{
+    struct psd_tcp buf;
+    u_short ans;
+
+    memset(&buf, 0, sizeof(buf));
+    buf.src_address = src;
+    buf.dst_address = dst;
+    buf.placeholder = 0;
+    buf.protocol = IPPROTO_TCP;
+    buf.tcp_length = htons(len);
+    memcpy(&(buf.tcp), addr, len);
+    ans = in_cksum((unsigned short *)&buf, 12 + len);
+    return ans;
+}
 
