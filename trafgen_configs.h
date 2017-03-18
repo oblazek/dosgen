@@ -2,93 +2,115 @@
 #define TRAFGEN_CONFIGS_H
 
 
-
-char *trafgen_syn_cfg = "{"
-			"fill(0xff, 6), " 	// Destination MAC address/Cilova MAC adresa                                                        /
-			"0x9c, 0x4e, 0x36, drnd(3), "	// Source MAC address/Zdrojova MAC adresa		 										MAC header
-			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4	 										/
+char *tcp_syn_cfg =     "{"
+                        "fill(0xff, 6), " 	// Destination MAC address/Cilova MAC adresa                                                                    /
+			"0xec, 0xf4, 0xbb, 0x0f, 0xb0, 0xb1, "	// Source MAC address/Zdrojova MAC adresa              						MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4	 						/
 			"0b01000101, 0, "		// IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS 			x
-			"const16(%u), "			// Overall length (IP + TCP)/Celkova delka (IP + TCP) 											x
-			"drnd(2), "			// IPv4 identificator/IPv4 identifikator															x
-			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat										x
- 			"64, "				// TTL (Time to Live)																				IP header
+			"const16(%u), "			// Overall length (IP + TCP)/Celkova delka (IP + TCP) 							x
+			"drnd(2), "			// IPv4 identificator/IPv4 identifikator								x
+			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat					        x
+ 			"64, "				// TTL (Time to Live)											IP header
 			"0x06, "			// Used protocol, 0x06 in HEX means TCP protocol/Protokol, hodnota 0x06 v hexa soustave znaci TCP	x
-			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)										x
-			"%s, "				// Source IP/Zdrojova IP adresa																		x
-			"%s, " 				// Destination IP/Cilova IP adresa																	x
-			"%s, "				// Source port/Zdrojovy port 																		!
-			"%s, " 				// Destination/Cilovy port 																			!
-			"drnd(4), "			// Sequence number/Sekvencni cislo 																	!
-			"const32(0), "			// Acknowledgment number/ACK cislo 																!
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)						x
+			"%s, "				// Source IP/Zdrojova IP adresa										x
+			"%s, " 				// Destination IP/Cilova IP adresa									x
+			"%s, "				// Source port/Zdrojovy port 										!
+			"%s, " 				// Destination/Cilovy port 										!
+			"drnd(4), "			// Sequence number/Sekvencni cislo 									!
+			"const32(0), "			// Acknowledgment number/ACK cislo 									!
 			"const16((0x5 << 12) | (1 << 1)), "// Header length(Data offset)/Delka TCP zahlavi (v 32b slovech) + priznak SYN		TCP header
-			"const16(512), "		// Window Size/Velikost okna TCP																!
-			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)										!
-			"const16(0), "			// Urgent pointer																				!
-			"fill(0x00, %u), "		// Filling/Vypln 																				!
+			"const16(512), "		// Window Size/Velikost okna TCP									!
+			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)						!
+			"const16(0), "			// Urgent pointer											!
+			"fill(0x00, %u), "		// Filling/Vypln 											!
+			"}";
+                        
+char *trafgen_syn_cfg = "{"
+			"fill(0xff, 6), " 	// Destination MAC address/Cilova MAC adresa                                                                    /
+			"0x9c, 0x4e, 0x36, drnd(3), "	// Source MAC address/Zdrojova MAC adresa		 						MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4	 						/
+			"0b01000101, 0, "		// IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS 			x
+			"const16(%u), "			// Overall length (IP + TCP)/Celkova delka (IP + TCP) 							x
+			"drnd(2), "			// IPv4 identificator/IPv4 identifikator								x
+			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat						x
+ 			"64, "				// TTL (Time to Live)											IP header
+			"0x06, "			// Used protocol, 0x06 in HEX means TCP protocol/Protokol, hodnota 0x06 v hexa soustave znaci TCP	x
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)						x
+			"%s, "				// Source IP/Zdrojova IP adresa										x
+			"%s, " 				// Destination IP/Cilova IP adresa									x
+			"%s, "				// Source port/Zdrojovy port 										!
+			"%s, " 				// Destination/Cilovy port 										!
+			"drnd(4), "			// Sequence number/Sekvencni cislo 									!
+			"const32(0), "			// Acknowledgment number/ACK cislo 									!
+			"const16((0x5 << 12) | (1 << 1)), "// Header length(Data offset)/Delka TCP zahlavi (v 32b slovech) + priznak SYN		TCP header
+			"const16(512), "		// Window Size/Velikost okna TCP									!
+			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)						!
+			"const16(0), "			// Urgent pointer											!
+			"fill(0x00, %u), "		// Filling/Vypln 											!
 			"}";
 
 char *trafgen_rst_cfg = "{"
-			"fill(0xff, 6), "	// Destination MAC address/Cilova MAC adresa                                                        /														
-			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa												MAC header
-			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4											/
-			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS             	x	
-			"const16(%u), "			//Overall length (IP + TCP)/Celkova delka (IP + TCP)                                           	x 
+			"fill(0xff, 6), "	// Destination MAC address/Cilova MAC adresa                                                                    /									
+			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa								MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4							/
+			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS             	        x	
+			"const16(%u), "			//Overall length (IP + TCP)/Celkova delka (IP + TCP)                                           	        x 
 			"drnd(2), "			// IPv4 identificator/IPv4 identifikator                                                           	x
 			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat                                		x
- 			"64, "				// TTL (Time to Live)																				IP header
-			"0x06, "			// Used protocol, 0x06 in HEX means TCP protocol/Protokol, hodnota 0x06 v hexa soustave znaci TCP   x
-			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                       x
-			"%s, "				// Source IP/Zdrojova IP adresa                                                                     x
-			"%s, " 				// Destination IP/Cilova IP adresa                                                                  x
-			"%s, "				// Source port/Zdrojovy port                                                                        ! 
-			"%s, " 				// Destination/Cilovy port                                                                          ! 
-			"drnd(4), "			// Sequence number/Sekvencni cislo                                                                  ! 
-			"const32(0), "			// Acknowledgment number/ACK cislo                                                              ! 
-			"const16((0x5 << 12) | (1 << 2)), "// Data offset/Delka TCP zahlavia (v 32b slovech) + priznak RST						TCP header
-			"const16(512), "		// Window Size/Velikost okna TCP                                                                !
-			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)                                        !
-			"const16(0), "			// Urgent pointer																				!
-			"fill(0x00, %u), "		// Filling/Vypln																				! 
+ 			"64, "				// TTL (Time to Live)											IP header
+			"0x06, "			// Used protocol, 0x06 in HEX means TCP protocol/Protokol, hodnota 0x06 v hexa soustave znaci TCP       x
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                               x
+			"%s, "				// Source IP/Zdrojova IP adresa                                                                         x
+			"%s, " 				// Destination IP/Cilova IP adresa                                                                      x
+			"%s, "				// Source port/Zdrojovy port                                                                            ! 
+			"%s, " 				// Destination/Cilovy port                                                                              ! 
+			"drnd(4), "			// Sequence number/Sekvencni cislo                                                                      ! 
+			"const32(0), "			// Acknowledgment number/ACK cislo                                                                      ! 
+			"const16((0x5 << 12) | (1 << 2)), "// Data offset/Delka TCP zahlavia (v 32b slovech) + priznak RST					TCP header
+			"const16(512), "		// Window Size/Velikost okna TCP                                                                        !
+			"csumtcp(14, 34), "		// Checksum/Vypocet kontrolniho souctu IP + TCP (od, do)                                                !
+			"const16(0), "			// Urgent pointer											!
+			"fill(0x00, %u), "		// Filling/Vypln											! 
 			"}";
-
 			
 char *trafgen_udp_cfg = "{"
-			"fill(0xff, 6), " 		 // Destination MAC address/Cilova MAC adresa                                                   /													
-			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa												MAC header
-			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4											/
-			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS             	x
-			"const16(%u), "			//Overall length (IP + UDP)/Celkova delka (IP + UDP) 											x						
-			"drnd(2), "			// IPv4 identificator/IPv4 identifikator                                                            x
+			"fill(0xff, 6), " 		 // Destination MAC address/Cilova MAC adresa                                                           /   
+			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa								MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4							/
+			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS             	        x
+                        "const16(%u), "			//Overall length (IP + UDP)/Celkova delka (IP + UDP) 							x						
+			"drnd(2), "			// IPv4 identificator/IPv4 identifikator                                                                x
 			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat                                 		x
- 			"64, "				// TTL (Time to Live)																				IP header
+ 			"64, "				// TTL (Time to Live)											IP header
 			"0x11, "			// Used protocol, 0x11 means UDP (17 in dec)/Pole protokol, cislo 0x11h znaci UDP (v dec 17)		x
-			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                       x
-			"%s, "			      	// Source IP/Zdrojova IP adresa                                                                 x
-			"%s, " 				// Destination IP/Cilova IP adresa                                                                  x
-			"%s, "				// Source port/Zdrojovy port UDP                                                                    !
-			"%s, " 				// Destination/Cilovy port UDP                                                                      !
-			"const16(%u), "			// UDP Length/Delka UDP 																		UDP header
-			"const16(0), "			// Checksum/Vypocet kontrolniho souctu (pro UDP je povolena 0)									!
-			"fill(0x00, %u), "		// Filling/Vypln 																				!
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                               x
+			"%s, "			      	// Source IP/Zdrojova IP adresa                                                                         x
+			"%s, " 				// Destination IP/Cilova IP adresa                                                                      x
+			"%s, "				// Source port/Zdrojovy port UDP                                                                        !
+			"%s, " 				// Destination/Cilovy port UDP                                                                          !
+			"const16(%u), "			// UDP Length/Delka UDP 										UDP header
+			"const16(0), "			// Checksum/Vypocet kontrolniho souctu (pro UDP je povolena 0)						!
+			"fill(0x00, %u), "		// Filling/Vypln 											!
 			"}";
 			
 char *trafgen_icmp_cfg ="{"
-			"fill(0xff, 6), " 		 // Destination MAC address/Cilova MAC adresa                                                   /
-			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa												MAC header
-			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4											/
-			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS              x
-			"const16(%u), "			//Overall length (IP + ICMP)/Celkova delka (IP + ICMP) 											x
-			"drnd(2), "			// IPv4 identificator/IPv4 identifikator                                                            x
+			"fill(0xff, 6), " 		 // Destination MAC address/Cilova MAC adresa                                                           /
+			"0x9c, 0x4e, 0x36, drnd(3), "	//Source MAC address/Zdrojova MAC adresa								MAC header
+			"const16(0x0800), " 		// 0x0800 is Ethertype for IPv4/Ethertype pro IPv4							/
+			"0b01000101, 0, "		//IPv4 version (equal to 4), IHL (Inernet header length), ToS/IPv4 verze, IHL, ToS                      x
+			"const16(%u), "			//Overall length (IP + ICMP)/Celkova delka (IP + ICMP) 							x
+			"drnd(2), "			// IPv4 identificator/IPv4 identifikator                                                                x
 			"0b01000000, 0, "		// IPv4 flags, don't fragment/IPv4 flags - nefragmentovat                                 		x
-			"64, "				// TTL (Time to Live)																				IP header
-			"0x01, "			// Used protocol, 0x01 is for ICMP/Protokol - 0x01 znaci ICMP										x
-			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                       x
-			"%s, "				// Source IP/Zdrojova IP adresa                                                                     x
-			"%s, " 				// Destination IP/Cilova IP adresa                                                                  x
-			"0x08, "			// ICMP type - 0x08 for echo request/Typ ICMP zpravy												!
-			"0x00, "			// ICMP subtype (code) 0x00 for echo request/ICMP subtyp (kod) 0x00 pro echo request				!
-			"csumip(14, %u) "		// Checksum/Vypocet kontrolniho souctu IP + ICMP 												ICMP header
-			"drnd(4), "			// Sequence number/Sekvencni cislo                                                                  !
+			"64, "				// TTL (Time to Live)											IP header
+			"0x01, "			// Used protocol, 0x01 is for ICMP/Protokol - 0x01 znaci ICMP						x
+			"csumip(14, 33), "		// Header Checksum/Vypocet kontrolniho souctu IP (od, do)                                               x
+			"%s, "				// Source IP/Zdrojova IP adresa                                                                         x
+			"%s, " 				// Destination IP/Cilova IP adresa                                                                      x
+			"0x08, "			// ICMP type - 0x08 for echo request/Typ ICMP zpravy							!
+			"0x00, "			// ICMP subtype (code) 0x00 for echo request/ICMP subtyp (kod) 0x00 pro echo request			!
+			"csumip(14, %u) "		// Checksum/Vypocet kontrolniho souctu IP + ICMP 							ICMP header
+			"drnd(4), "			// Sequence number/Sekvencni cislo                                                                      !
 			"fill(0x00, %u), "		// Filling/Vypln 																				
 			"}";
 

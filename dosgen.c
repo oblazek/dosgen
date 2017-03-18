@@ -717,11 +717,11 @@ int main(int argc, char **argv)
             dhcp_flood(flood_argc + 1, flood_argv);
         }
         // HTTP GET flood
-		else if (strcmp(flood_type, "--http") == 0)
-		{
-			http_get_flood(flood_argc + 1, flood_argv);
-		}
-		else
+        else if (strcmp(flood_type, "--http") == 0)
+        {
+            http_get_flood(flood_argc + 1, flood_argv);
+        }
+	else
         {
             print_help_and_die();
         }
