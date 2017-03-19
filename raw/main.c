@@ -7,10 +7,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <pcap.h>
-//#include <netinet/in_systm.h>
-//#include <netinet/in.h>
 #include <errno.h> //strerr
-//#include <sys/types.h>
 #include <netdb.h>
 #include "../trafgen/csum.h"
 
@@ -23,11 +20,8 @@ void receive_ack(struct in_addr *dst_ip);
 int start_sniffing(struct in_addr *dst_ip);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 
-int sock_raw;
-FILE *logfile;
 int tcp=0, others=0, total=0, i, j;
 struct sockaddr_in source, dest;
-
 
 //For checksum
 struct psd_tcp {
@@ -39,10 +33,9 @@ struct psd_tcp {
     struct tcphdr tcp;
 };
 
-
-
 int main(int argc, char *argv[])
 {
+    int sock_raw;
     struct in_addr dst_ip;
 
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -209,6 +202,12 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 //{
 //
 //}
+void send_syn_ack()
+{
+    struct ip iph;
+    struct tcphdr tcph;
+    struct sockaddr_in dest;
+}
 
 void receive_ack(struct in_addr *dst_ip)
 {
@@ -231,7 +230,7 @@ int start_sniffing(struct in_addr *dst_ip)
 
     //Creating raw socket used for sniffing
     socket_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    if(sock_raw < 0)
+    if(socket_raw < 0)
     {
         fprintf(stderr, "Failed to create a socket. Error message: %s", strerror(errno));
         fflush(stdout);
@@ -260,13 +259,13 @@ int start_sniffing(struct in_addr *dst_ip)
             //return 0;
     }
 
-    close(sock_raw);
+    close(socket_raw);
     printf("Finished sniffing.\n");
     fflush(stdout);
     return 0;
 }
 
-int process_packet(unsigned char *buffer, int data_size, struct in_addr *dst_ip)
+int process_packet(unsigned char *buffer, struct in_addr *dst_ip)
 {
     //Get the IP header
     struct iphdr *iph = (struct iphdr *)buffer;
