@@ -6,19 +6,21 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
-#include <netinet/in_systm.h>
-#include <netinet/in.h>
+#include <pcap.h>
+//#include <netinet/in_systm.h>
+//#include <netinet/in.h>
 #include <errno.h> //strerr
 //#include <sys/types.h>
 #include <netdb.h>
 #include "../trafgen/csum.h"
 
-void process_packet(unsigned char*, int, struct in_addr *dst_ip);
+int process_packet(unsigned char*, int, struct in_addr *dst_ip);
 void print_ip_header(unsigned char*, int);
 void print_tcp_header(unsigned char*, int);
 void hostname_toip(char *, struct in_addr *dst_ip);
 int get_local_ip(char *);
 void receive_ack(struct in_addr *dst_ip);
+int start_sniffing(struct in_addr *dst_ip);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 
 int sock_raw;
@@ -31,7 +33,7 @@ struct sockaddr_in source, dest;
 struct psd_tcp {
     unsigned int src_address;
     unsigned int dst_address;
-    unsigned char placeholder;
+    unsigned char reserved;
     unsigned char protocol;
     unsigned short tcp_length;
     struct tcphdr tcp;
@@ -114,7 +116,7 @@ int main(int argc, char *argv[])
     memcpy(packet_to_send, &iph, sizeof(iph));
 
     //Fill in the TCP header
-    tcph.th_sport = htons(55555);
+    tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
     tcph.th_seq = htonl(0);
     tcph.th_ack = htonl(0);
@@ -138,39 +140,23 @@ int main(int argc, char *argv[])
     }
 
     printf("Starting sniffing.\n");
-    char *thread1Message = "Thread 1";
     int th1ret = 0;
     pthread_t thread1;
 
     //Creating thread with receive_ack() function call, will start receiving packets and process them
-    //if(pthread_create(&thread1, NULL, receive_ack(), &dst_ip) < 0)
-    //{
-    //    fprintf(stderr, "Failed to create a new thread.\n");
-    //    return 1;
-    //}
+    if(pthread_create(&thread1, NULL, receive_ack, &dst_ip) < 0)
+    {
+        fprintf(stderr, "Failed to create a new thread.\n");
+        return 1;
+    }
+    sleep(1);
 
     printf("Starting to send syn packets.\n");
 
-    int port = 80;
     //dest - sockaddr_in
     memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = iph.ip_dst.s_addr;
-
-
-    //tcph->dest = htons(port);
-    //tcph->check = 0;
-
-    //pshdr.src_address = inet_addr(source_ip);
-    //pshdr.dst_address = dst_ip.s_addr;
-    //pshdr.placeholder = 0;
-    //pshdr.protocol = IPPROTO_TCP;
-    //pshdr.tcp_length = htons(sizeof(struct tcphdr));
-
-    //Copies mem area from tcph to pshdr.tcp
-    //memcpy(&pshdr.tcp, tcph, sizeof(struct tcphdr));
-
-
 
     //Send the packet out
     if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
@@ -179,8 +165,9 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
-    //pthread_join(thread1, NULL);
-    printf("%d\n", th1ret);
+    printf("Syn has been sent out.\n");
+    pthread_join(thread1, NULL);
+    printf("Value returned from thread 1: %d\nProgram will now close.\n", th1ret);
 
     return 0;
 }
@@ -189,11 +176,6 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 {
     struct addrinfo hints, *result;
     int addrinfores = 0;
-
-   // if ((h = malloc(sizeof (struct sockaddr_in))) == NULL)
-   //     return NULL;
-
-    char ipv4[INET_ADDRSTRLEN];
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -230,7 +212,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 
 void receive_ack(struct in_addr *dst_ip)
 {
-    start_sniffing(&dst_ip);
+    start_sniffing(dst_ip);
 }
 
 int start_sniffing(struct in_addr *dst_ip)
@@ -255,12 +237,13 @@ int start_sniffing(struct in_addr *dst_ip)
         fflush(stdout);
         return 1;
     }
-    printf("Receiving packets");
+    printf("Receiving packets.\n");
     saddr_size = sizeof(saddr);
 
     while(1)
     {
-        //Receive a packet
+        int ret = 1;
+        //Receive a packet, packets are stored into a buffer
         data_size = recvfrom(socket_raw, buffer, 65535, 0, &saddr, &saddr_size);
 
         if(data_size < 0)
@@ -271,16 +254,19 @@ int start_sniffing(struct in_addr *dst_ip)
         }
 
         //Now process the packet
-        process_packet(buffer, data_size, dst_ip);
+        ret = process_packet(buffer, data_size, dst_ip);
+        if(ret == 0)
+            break;
+            //return 0;
     }
 
     close(sock_raw);
-    printf("Finished sniffing");
+    printf("Finished sniffing.\n");
     fflush(stdout);
     return 0;
 }
 
-void process_packet(unsigned char *buffer, int data_size, struct in_addr *dst_ip)
+int process_packet(unsigned char *buffer, int data_size, struct in_addr *dst_ip)
 {
     //Get the IP header
     struct iphdr *iph = (struct iphdr *)buffer;
@@ -305,6 +291,7 @@ void process_packet(unsigned char *buffer, int data_size, struct in_addr *dst_ip
         {
             printf("You just received an ack message!\n");
             fflush(stdout);
+            return 0;
         }
 
     }
@@ -342,7 +329,7 @@ unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len)
     memset(&buf, 0, sizeof(buf));
     buf.src_address = src;
     buf.dst_address = dst;
-    buf.placeholder = 0;
+    buf.reserved = 0;
     buf.protocol = IPPROTO_TCP;
     buf.tcp_length = htons(len);
     memcpy(&(buf.tcp), addr, len);
