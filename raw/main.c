@@ -11,13 +11,14 @@
 #include <netdb.h>
 #include "../trafgen/csum.h"
 
-int process_packet(unsigned char*, int, struct in_addr *dst_ip);
+int process_packet(unsigned char*, struct in_addr *dst_ip);
 void print_ip_header(unsigned char*, int);
 void print_tcp_header(unsigned char*, int);
 void hostname_toip(char *, struct in_addr *dst_ip);
 int get_local_ip(char *);
 void receive_ack(struct in_addr *dst_ip);
 int start_sniffing(struct in_addr *dst_ip);
+void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, int sock_raw);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 
 int tcp=0, others=0, total=0, i, j;
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
 
     if(sock_raw < 0)
     {
-        printf("Socket error\n");
+        perror("Socket error\n");
         return 1;
     }
     else
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
     }
 
     int source_port = 55555;
-    char source_ip[20] = "10.0.0.41";
+    char source_ip[20] = "10.14.222.177";
     //get_local_ip(source_ip);
 
     printf("Local ip is: %s\n", source_ip);
@@ -155,13 +156,13 @@ int main(int argc, char *argv[])
     if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
     {
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
-        exit(0);
+        exit(1);
     }
 
     printf("Syn has been sent out.\n");
     pthread_join(thread1, NULL);
+    send_syn_ack(source_ip, &dst_ip, source_port, sock_raw);
     printf("Value returned from thread 1: %d\nProgram will now close.\n", th1ret);
-
     return 0;
 }
 
@@ -198,15 +199,56 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
-//int get_local_ip(char *source_ip)
-//{
-//
-//}
-void send_syn_ack()
+void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, int sock_raw)
 {
     struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
+
+    char *pkt_syn_ack;
+    pkt_syn_ack = (char *) malloc(60);
+
+    iph.ip_hl = 5;
+    iph.ip_v = 4;
+    iph.ip_tos = 0;
+    iph.ip_len = sizeof(struct ip) + sizeof(struct tcphdr);
+    iph.ip_id = htons(12346);
+    iph.ip_off = 0;
+    iph.ip_ttl = 64;
+    iph.ip_p = IPPROTO_TCP;
+    iph.ip_sum = 0;
+    iph.ip_src.s_addr = inet_addr(source_ip);
+    iph.ip_dst.s_addr = dst_ip->s_addr;
+    iph.ip_sum = csum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
+
+    memcpy(pkt_syn_ack, &iph, sizeof(iph));
+
+    tcph.th_sport = htons(source_port);
+    tcph.th_dport = htons(80);
+    tcph.th_seq = htonl(1);
+    tcph.th_ack = htonl(1);
+    tcph.th_x2 = 0;
+    tcph.th_off = sizeof(struct tcphdr) / 4;
+    tcph.th_flags = TH_ACK;
+    tcph.th_win = htons(29200);
+    tcph.th_sum = 0;
+    tcph.th_urp = 0;
+    tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, sizeof(tcph));
+
+    memcpy(pkt_syn_ack + sizeof(iph), &tcph, sizeof(tcph));
+
+    memset(&dest, 0, sizeof(dest));
+    dest.sin_family = AF_INET;
+    dest.sin_addr.s_addr = iph.ip_dst.s_addr;
+
+    if(sendto(sock_raw, pkt_syn_ack, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
+    {
+        perror("Failed to send syn_ack packet!\n");
+        return 1;
+    }
+
+    printf("Syn_Ack packet has been sent out!\n");
+
 }
 
 void receive_ack(struct in_addr *dst_ip)
@@ -253,7 +295,7 @@ int start_sniffing(struct in_addr *dst_ip)
         }
 
         //Now process the packet
-        ret = process_packet(buffer, data_size, dst_ip);
+        ret = process_packet(buffer, dst_ip);
         if(ret == 0)
             break;
             //return 0;
@@ -290,8 +332,12 @@ int process_packet(unsigned char *buffer, struct in_addr *dst_ip)
         {
             printf("You just received an ack message!\n");
             fflush(stdout);
+            //printf("Dst port: %s\n", );
+            //send_syn_ack(inet_ntoa(source.sin_addr), &dst_ip, source_port, sock_raw);
+            //send_syn_ack(source_ip, &dst_ip, source_port, sock_raw);
             return 0;
         }
+        return 1;
 
     }
 
