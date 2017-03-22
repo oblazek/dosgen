@@ -9,7 +9,11 @@
 #include <pcap.h>
 #include <errno.h> //strerr
 #include <netdb.h>
+#include <netinet/if_ether.h>
 #include "../trafgen/csum.h"
+
+#define SIZE_ETHERNET 14
+#define IP_HL(ip)		(((ip)->ip_hl) & 0x0f)
 
 int process_packet(unsigned char*, struct in_addr *dst_ip);
 void print_ip_header(unsigned char*, int);
@@ -20,6 +24,7 @@ void receive_ack(struct in_addr *dst_ip);
 int start_sniffing(struct in_addr *dst_ip);
 void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, int sock_raw);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
+void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_char *packet);
 
 int tcp=0, others=0, total=0, i, j;
 struct sockaddr_in source, dest;
@@ -76,7 +81,7 @@ int main(int argc, char *argv[])
     }
 
     int source_port = 55555;
-    char source_ip[20] = "10.14.222.177";
+    char source_ip[20] = "192.168.0.29";
     //get_local_ip(source_ip);
 
     printf("Local ip is: %s\n", source_ip);
@@ -151,6 +156,17 @@ int main(int argc, char *argv[])
     memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = iph.ip_dst.s_addr;
+
+    //struct sockaddr_in my_addr;
+    //my_addr.sin_family = AF_INET;
+    //inet_aton(source_ip, my_addr.sin_addr.s_addr);
+    //my_addr.sin_port = "55555";
+
+    //if(bind(sock_raw, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
+    //{
+    //    perror("Error setting up bind.\n");
+    //    return 1;
+    //}
 
     //Send the packet out
     if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
@@ -258,54 +274,149 @@ void receive_ack(struct in_addr *dst_ip)
 
 int start_sniffing(struct in_addr *dst_ip)
 {
-    int socket_raw;
-    int data_size;
 
-    struct sockaddr saddr;
-    unsigned int saddr_size;
+    pcap_t *descr;
+    char *filter = "host www.ricanyubrna.cz";
+    char *dev = "wlan0";
+    char error_buffer[PCAP_ERRBUF_SIZE];
 
-    //Access to the buffer using dynamic mem alloc
-    unsigned char *buffer = (unsigned char *) malloc(65536);
+    bpf_u_int32 net;
+    bpf_u_int32 mask;
 
-    printf("Starting up the sniffer!\n");
-    fflush(stdout);
+    struct bpf_program filterf;
 
-    //Creating raw socket used for sniffing
-    socket_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    if(socket_raw < 0)
+    if((descr = pcap_open_live(dev, BUFSIZ, 1, -1, error_buffer)) == NULL)
     {
-        fprintf(stderr, "Failed to create a socket. Error message: %s", strerror(errno));
-        fflush(stdout);
+        perror("Could not open a pcap device.\n");
         return 1;
     }
-    printf("Receiving packets.\n");
-    saddr_size = sizeof(saddr);
 
-    while(1)
+    //looking up net/mask for given dev
+    pcap_lookupnet(dev, &net, &mask, error_buffer);
+
+    //compiling filter expression
+    pcap_compile(descr, &filterf, filter, 0, net);
+
+
+    if(pcap_setfilter(descr, &filterf) == -1)
     {
-        int ret = 1;
-        //Receive a packet, packets are stored into a buffer
-        data_size = recvfrom(socket_raw, buffer, 65535, 0, &saddr, &saddr_size);
+        perror("Error setting up pcap filter.\n");
+        return 1;
+    }
 
-        if(data_size < 0)
+    //freeing a bpf program
+    pcap_freecode(&filterf);
+
+    //getting link-layer header type = 1 means Ethernet according to IEEE 802.3
+    int hdr_type = pcap_datalink(descr);
+    int length;
+
+    if(hdr_type == 1)
+        //sizeof ethernet header is 14
+        length = 14;
+        if(pcap_loop(descr, -1, packet_receive, (u_char *) length) < 0)
         {
-            printf("Recvfrom error, failed to get packets! Error message: %s\n", strerror(errno));
-            fflush(stdout);
+            perror("Cannot get raw packet.\n");
             return 1;
         }
 
-        //Now process the packet
-        ret = process_packet(buffer, dst_ip);
-        if(ret == 0)
-            break;
-            //return 0;
-    }
+    //int socket_raw;
+    //int data_size;
 
-    close(socket_raw);
-    printf("Finished sniffing.\n");
-    fflush(stdout);
+    //struct sockaddr saddr;
+    //unsigned int saddr_size;
+
+    ////Access to the buffer using dynamic mem alloc
+    //unsigned char *buffer = (unsigned char *) malloc(65536);
+
+    //printf("Starting up the sniffer!\n");
+    //fflush(stdout);
+
+    ////Creating raw socket used for sniffing
+    //socket_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+    //if(socket_raw < 0)
+    //{
+    //    fprintf(stderr, "Failed to create a socket. Error message: %s", strerror(errno));
+    //    fflush(stdout);
+    //    return 1;
+    //}
+
+    //printf("Receiving packets.\n");
+    //saddr_size = sizeof(saddr);
+    //struct sockaddr_in my_addr;
+    //my_addr.sin_family = AF_INET;
+    //inet_aton(source_ip, my_addr.sin_addr.s_addr);
+    //my_addr.sin_port = "55555";
+
+    //if(bind(sock_raw, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
+    //{
+    //    perror("Error setting up bind.\n");
+    //    return 1;
+    //}
+
+    //while(1)
+    //{
+    //    int ret = 1;
+    //    //Receive a packet, packets are stored into a buffer
+    //    data_size = recvfrom(socket_raw, buffer, 65535, 0, &saddr, &saddr_size);
+
+    //    if(data_size < 0)
+    //    {
+    //        printf("Recvfrom error, failed to get packets! Error message: %s\n", strerror(errno));
+    //        fflush(stdout);
+    //        return 1;
+    //    }
+
+    //    //Now process the packet
+    //    ret = process_packet(buffer, dst_ip);
+    //    if(ret == 0)
+    //        break;
+    //        //return 0;
+    //}
+
+    //close(socket_raw);
+    //printf("Finished sniffing.\n");
+    //fflush(stdout);
     return 0;
 }
+
+void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_char *packet)
+{
+    struct ip *ip;
+    struct tcphdr *tcp;
+    u_char *ptr;
+
+    //int l1_len = (int) udata;
+    int seq_n;
+
+    ip = (struct ip *)(packet + sizeof(struct ether_header));
+    //printf("Size of ether_header is: %d\n", sizeof(struct ether_header));
+    tcp = (struct tcphdr *)(packet + SIZE_ETHERNET + (IP_HL(ip)*4));
+
+    printf("---------------------------\n");
+    printf("GOT PACKET!\n");
+    printf("---------------------------\n");
+
+    //printf("%d\n", l1_len);
+    printf("Packet came along with src IP: %s\n", inet_ntoa(ip->ip_src));
+    printf("Packet came along with dst IP: %s\n", inet_ntoa(ip->ip_dst));
+
+    printf("Packet came with ack: %d\n", ntohl(tcp->th_ack));
+    printf("Packet came with seq: %u\n", ntohl(tcp->th_seq));
+    //& is a binary AND
+    if(tcp->th_flags & TH_SYN)
+        printf("Packet has a flags set as SYN!\n");
+    if(tcp->th_flags & TH_ACK)
+        printf("Packet has a flags set as ACK!\n");
+    if(tcp->th_flags & TH_RST)
+        printf("Packet has a flags set as RST!\n");
+    if(tcp->th_flags & TH_FIN)
+        printf("Packet has a flags set as FIN!\n");
+    if(tcp->th_flags & TH_PUSH)
+        printf("Packet has a flags set as PUSH!\n");
+    //seq_n = ntohl(tcp->th_seq);
+
+    }
 
 int process_packet(unsigned char *buffer, struct in_addr *dst_ip)
 {
