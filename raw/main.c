@@ -10,6 +10,7 @@
 #include <errno.h> //strerr
 #include <netdb.h>
 #include <netinet/if_ether.h>
+#include <ifaddrs.h>
 #include "../trafgen/csum.h"
 
 #define SIZE_ETHERNET 14
@@ -22,7 +23,7 @@ void hostname_toip(char *, struct in_addr *dst_ip);
 int get_local_ip(char *);
 void receive_ack(struct in_addr *dst_ip);
 int start_sniffing(struct in_addr *dst_ip);
-void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, int sock_raw);
+void send_syn_ack(char *source_ip, char *dst_ip, char *source_port, u_int32_t seq);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_char *packet);
 
@@ -43,6 +44,9 @@ int main(int argc, char *argv[])
 {
     int sock_raw;
     struct in_addr dst_ip;
+
+    int source_port = 55555;
+    char source_ip[20] = "";
 
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 
@@ -74,15 +78,50 @@ int main(int argc, char *argv[])
     else
     {
         //Calls function hostname_toip which translates hostname to IP
-        printf("Calling addrinfo function, with a host: '%s'\n", dst);
+        //printf("Calling addrinfo function, with a host: '%s'\n", dst);
         hostname_toip(dst, &dst_ip);
-        //inet_ntoa need whole in_addr struct
-        printf("Value returned: %s\n", inet_ntoa(dst_ip));
+        //inet_ntoa needs whole in_addr struct
+        printf("Your victim is: %s\n", inet_ntoa(dst_ip));
     }
 
-    int source_port = 55555;
-    char source_ip[20] = "192.168.0.29";
-    //get_local_ip(source_ip);
+
+//******************GET LOCAL IP**********************
+    char *device, errbuff[PCAP_ERRBUF_SIZE];
+    bpf_u_int32 net, mask;
+
+    device = pcap_lookupdev(errbuff);
+    printf("Your default device is: %s\n", device);
+
+    pcap_lookupnet(device, &net, &mask, errbuff);
+
+    struct in_addr tmp;
+    tmp.s_addr = net;
+
+    //strcpy(source_ip, inet_ntoa(tmp));
+
+    struct ifaddrs *ifaddr, *ifa;
+    int s;
+    char host[NI_MAXHOST];
+    getifaddrs(&ifaddr);
+
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    {
+        if(ifa->ifa_addr == NULL)
+            continue;
+        //min 8 field width between prints, with left alignment '-'
+        //printf("%-8s\n", ifa->ifa_name);
+
+        s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+        if(*(ifa->ifa_name) == *device && ifa->ifa_addr->sa_family==AF_INET)
+        {
+            //printf("IP: %s\n", host);
+            strcpy(source_ip, host);
+        }
+    }
+//*****************END OF GET LOCAL IP******************
+
+    //char source_ip[20] = "10.14.222.245";
 
     printf("Local ip is: %s\n", source_ip);
 
@@ -150,7 +189,7 @@ int main(int argc, char *argv[])
     }
     sleep(1);
 
-    printf("Starting to send syn packets.\n");
+    printf("Starting to send packets.\n");
 
     //dest - sockaddr_in
     memset(&dest, 0, sizeof(dest));
@@ -175,9 +214,9 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    printf("Syn has been sent out.\n");
+    //printf("Syn has been sent out.\n");
     pthread_join(thread1, NULL);
-    send_syn_ack(source_ip, &dst_ip, source_port, sock_raw);
+    //send_syn_ack(source_ip, &dst_ip, source_port);
     printf("Value returned from thread 1: %d\nProgram will now close.\n", th1ret);
     return 0;
 }
@@ -192,7 +231,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    printf("Getting addrinfo of: %s\n", dst);
+    //printf("Getting addrinfo of: %s\n", dst);
 
     //Translating hostname to IP
     addrinfores = getaddrinfo(dst, "80", &hints, &result);
@@ -206,20 +245,26 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     struct sockaddr_in *addr;
     //I can cast sockaddr to sockaddr_in which I need for writing to stdout
     addr = (struct sockaddr_in *) result->ai_addr;
-    printf("You address: %s\n", inet_ntoa((struct in_addr) addr->sin_addr));
+
+    freeaddrinfo(result);
+    //printf("You address: %s\n", inet_ntoa((struct in_addr) addr->sin_addr));
 
     //ai_addr is a struct in_addr what is the same type as dst_ip
     *dst_ip = addr->sin_addr;
 
     //I have dst_ip as a pointer here, that's why I need to pass *dst_ip
-    printf("Translated as: %s\n", inet_ntoa(*dst_ip));
+    //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
-void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, int sock_raw)
+void send_syn_ack(char *source_ip, char *dst_ip, char *source_port, u_int32_t seq)
 {
     struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
+
+    int sock_raw;
+
+    sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 
     char *pkt_syn_ack;
     pkt_syn_ack = (char *) malloc(60);
@@ -233,8 +278,8 @@ void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, in
     iph.ip_ttl = 64;
     iph.ip_p = IPPROTO_TCP;
     iph.ip_sum = 0;
-    iph.ip_src.s_addr = inet_addr(source_ip);
-    iph.ip_dst.s_addr = dst_ip->s_addr;
+    iph.ip_src.s_addr = source_ip;
+    iph.ip_dst.s_addr = dst_ip;
     iph.ip_sum = csum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
 
     memcpy(pkt_syn_ack, &iph, sizeof(iph));
@@ -242,7 +287,7 @@ void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, in
     tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
     tcph.th_seq = htonl(1);
-    tcph.th_ack = htonl(1);
+    tcph.th_ack = htonl(seq + 1);
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_ACK;
@@ -257,13 +302,22 @@ void send_syn_ack(char *source_ip, struct in_addr *dst_ip, char *source_port, in
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = iph.ip_dst.s_addr;
 
+    int one = 1;
+
+    //IP_HDRINCL tells the kernel that headers are included
+    if(setsockopt(sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
+    {
+        fprintf(stderr, "Error setting up setsockopt!\n");
+        return 1;
+    }
+
     if(sendto(sock_raw, pkt_syn_ack, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
     {
         perror("Failed to send syn_ack packet!\n");
         return 1;
     }
 
-    printf("Syn_Ack packet has been sent out!\n");
+    //printf("Syn_Ack packet has been sent out!\n");
 
 }
 
@@ -276,8 +330,8 @@ int start_sniffing(struct in_addr *dst_ip)
 {
 
     pcap_t *descr;
-    char *filter = "host www.ricanyubrna.cz";
-    char *dev = "wlan0";
+    char *filter = "host www.hustopece.cz";
+    char *dev = "eth0";
     char error_buffer[PCAP_ERRBUF_SIZE];
 
     bpf_u_int32 net;
@@ -320,63 +374,6 @@ int start_sniffing(struct in_addr *dst_ip)
             return 1;
         }
 
-    //int socket_raw;
-    //int data_size;
-
-    //struct sockaddr saddr;
-    //unsigned int saddr_size;
-
-    ////Access to the buffer using dynamic mem alloc
-    //unsigned char *buffer = (unsigned char *) malloc(65536);
-
-    //printf("Starting up the sniffer!\n");
-    //fflush(stdout);
-
-    ////Creating raw socket used for sniffing
-    //socket_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    //if(socket_raw < 0)
-    //{
-    //    fprintf(stderr, "Failed to create a socket. Error message: %s", strerror(errno));
-    //    fflush(stdout);
-    //    return 1;
-    //}
-
-    //printf("Receiving packets.\n");
-    //saddr_size = sizeof(saddr);
-    //struct sockaddr_in my_addr;
-    //my_addr.sin_family = AF_INET;
-    //inet_aton(source_ip, my_addr.sin_addr.s_addr);
-    //my_addr.sin_port = "55555";
-
-    //if(bind(sock_raw, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
-    //{
-    //    perror("Error setting up bind.\n");
-    //    return 1;
-    //}
-
-    //while(1)
-    //{
-    //    int ret = 1;
-    //    //Receive a packet, packets are stored into a buffer
-    //    data_size = recvfrom(socket_raw, buffer, 65535, 0, &saddr, &saddr_size);
-
-    //    if(data_size < 0)
-    //    {
-    //        printf("Recvfrom error, failed to get packets! Error message: %s\n", strerror(errno));
-    //        fflush(stdout);
-    //        return 1;
-    //    }
-
-    //    //Now process the packet
-    //    ret = process_packet(buffer, dst_ip);
-    //    if(ret == 0)
-    //        break;
-    //        //return 0;
-    //}
-
-    //close(socket_raw);
-    //printf("Finished sniffing.\n");
-    //fflush(stdout);
     return 0;
 }
 
@@ -385,9 +382,6 @@ void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_cha
     struct ip *ip;
     struct tcphdr *tcp;
     u_char *ptr;
-
-    //int l1_len = (int) udata;
-    int seq_n;
 
     ip = (struct ip *)(packet + sizeof(struct ether_header));
     //printf("Size of ether_header is: %d\n", sizeof(struct ether_header));
@@ -401,8 +395,8 @@ void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_cha
     printf("Packet came along with src IP: %s\n", inet_ntoa(ip->ip_src));
     printf("Packet came along with dst IP: %s\n", inet_ntoa(ip->ip_dst));
 
-    printf("Packet came with ack: %d\n", ntohl(tcp->th_ack));
     printf("Packet came with seq: %u\n", ntohl(tcp->th_seq));
+    printf("Packet came with ack: %u\n", ntohl(tcp->th_ack));
     //& is a binary AND
     if(tcp->th_flags & TH_SYN)
         printf("Packet has a flags set as SYN!\n");
@@ -415,43 +409,14 @@ void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_cha
     if(tcp->th_flags & TH_PUSH)
         printf("Packet has a flags set as PUSH!\n");
     //seq_n = ntohl(tcp->th_seq);
-
-    }
-
-int process_packet(unsigned char *buffer, struct in_addr *dst_ip)
-{
-    //Get the IP header
-    struct iphdr *iph = (struct iphdr *)buffer;
-    struct sockaddr_in source, destination;
-    unsigned short iphdrlength;
-
-    //If upper level protocol is TCP then...
-    if(iph->protocol == 6)
+    if((tcp->th_flags & TH_SYN) && (tcp->th_flags & TH_ACK))
     {
-        iphdrlength = iph->ihl*4;
+        int seq_n = ntohl(tcp->th_seq);
+        //printf("Sequence num is: %u\n", seq_n);
 
-        struct tcphdr *tcph = (struct tcphdr *)(buffer + iphdrlength);
-
-        //Fill memory used by "source" with zeros
-        memset(&source, 0, sizeof(source));
-        source.sin_addr.s_addr = iph->saddr;
-
-        memset(&destination, 0, sizeof(destination));
-        destination.sin_addr.s_addr = iph->daddr;
-
-        if(tcph->syn == 1 && tcph->ack == 1 && source.sin_addr.s_addr == dst_ip->s_addr)
-        {
-            printf("You just received an ack message!\n");
-            fflush(stdout);
-            //printf("Dst port: %s\n", );
-            //send_syn_ack(inet_ntoa(source.sin_addr), &dst_ip, source_port, sock_raw);
-            //send_syn_ack(source_ip, &dst_ip, source_port, sock_raw);
-            return 0;
-        }
-        return 1;
+        send_syn_ack(ip->ip_dst.s_addr, ip->ip_src.s_addr, tcp->th_dport, seq_n);
 
     }
-
 }
 
 unsigned short in_cksum(unsigned short *addr, int len)
