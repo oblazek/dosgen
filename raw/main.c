@@ -23,7 +23,7 @@ void hostname_toip(char *, struct in_addr *dst_ip);
 int get_local_ip(char *);
 void receive_ack(struct in_addr *dst_ip);
 int start_sniffing(struct in_addr *dst_ip);
-void send_syn_ack(char *source_ip, char *dst_ip, char *source_port, u_int32_t seq);
+void send_syn_ack(char *source_ip, char *dst_ip, u_int16_t *source_port, u_int32_t seq);
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len);
 void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_char *packet);
 
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     int sock_raw;
     struct in_addr dst_ip;
 
-    int source_port = 55555;
+    int source_port = 55556;
     char source_ip[20] = "";
 
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     }
 //*****************END OF GET LOCAL IP******************
 
-    //char source_ip[20] = "10.14.222.245";
+    strcpy(source_ip, "10.0.0.150");
 
     printf("Local ip is: %s\n", source_ip);
 
@@ -256,7 +256,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
-void send_syn_ack(char *source_ip, char *dst_ip, char *source_port, u_int32_t seq)
+void send_syn_ack(char *source_ip, char *dst_ip, u_int16_t *source_port, u_int32_t seq)
 {
     struct ip iph;
     struct tcphdr tcph;
@@ -282,6 +282,7 @@ void send_syn_ack(char *source_ip, char *dst_ip, char *source_port, u_int32_t se
     iph.ip_dst.s_addr = dst_ip;
     iph.ip_sum = csum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
 
+    printf("Source port in ACK message is: %u\n", source_port);
     memcpy(pkt_syn_ack, &iph, sizeof(iph));
 
     tcph.th_sport = htons(source_port);
@@ -330,8 +331,8 @@ int start_sniffing(struct in_addr *dst_ip)
 {
 
     pcap_t *descr;
-    char *filter = "host www.hustopece.cz";
-    char *dev = "eth0";
+    char *filter = "host www.hustopece-city.cz";
+    char *dev = "wlan0";
     char error_buffer[PCAP_ERRBUF_SIZE];
 
     bpf_u_int32 net;
@@ -414,7 +415,7 @@ void packet_receive(u_char *udata, const struct pcap_pkthdr *pkthdr, const u_cha
         int seq_n = ntohl(tcp->th_seq);
         //printf("Sequence num is: %u\n", seq_n);
 
-        send_syn_ack(ip->ip_dst.s_addr, ip->ip_src.s_addr, tcp->th_dport, seq_n);
+        send_syn_ack(ip->ip_dst.s_addr, ip->ip_src.s_addr, ntohs(tcp->th_dport), seq_n);
 
     }
 }
