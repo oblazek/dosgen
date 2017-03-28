@@ -1,13 +1,17 @@
 #ifndef HANDSHAKE_H
 #define HANDSHAKE_H
+
 #include <netinet/in.h>
 #include <pcap.h>
 #include <netinet/if_ether.h> //declaration for ether header
 #include <netinet/tcp.h> //declaration for tcp header
 #include <netinet/ip.h> //declaration for ip header
-#include "../trafgen/csum.h"
 #include <stdlib.h> //exit, malloc
 #include <arpa/inet.h> //inet_ntoa...
+#include <string.h> //memset
+#include <unistd.h> //sleep
+
+#include "../trafgen/csum.h"
 
 #define SIZE_ETHERNET 14
 #define IP_HL(ip)		(((ip)->ip_hl) & 0x0f)

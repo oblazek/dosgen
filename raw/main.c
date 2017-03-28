@@ -3,15 +3,10 @@
 #include <string.h> //memset
 #include <netinet/tcp.h> //declaration for tcp header
 #include <netinet/ip.h> //declaration for ip header
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <pcap.h>
+#include <pthread.h> //threads
 #include <errno.h> //strerr
 #include <netdb.h> //NI_MAXHOST, NI_NUMERICHOST
-#include <netinet/if_ether.h>
-#include <ifaddrs.h>
-#include <unistd.h> //sleep
+#include <ifaddrs.h> //getifaddrs func
 
 #include "handshake.h"
 
@@ -99,7 +94,7 @@ int main(int argc, char *argv[])
     }
 //*****************END OF GET LOCAL IP******************
 
-    strcpy(source_ip, "10.0.0.12");
+    //strcpy(source_ip, "10.0.0.12");
 
     printf("Local ip is: %s\n", source_ip);
 
@@ -173,17 +168,6 @@ int main(int argc, char *argv[])
     memset(&dest, 0, sizeof(dest));
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = iph.ip_dst.s_addr;
-
-    //struct sockaddr_in my_addr;
-    //my_addr.sin_family = AF_INET;
-    //inet_aton(source_ip, my_addr.sin_addr.s_addr);
-    //my_addr.sin_port = "55555";
-
-    //if(bind(sock_raw, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
-    //{
-    //    perror("Error setting up bind.\n");
-    //    return 1;
-    //}
 
     //Send the packet out
     if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)

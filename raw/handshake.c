@@ -128,7 +128,7 @@ void packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, const u_ch
     if(tcp->th_flags & TH_PUSH)
         printf("Packet has a flags set as PUSH!\n");
     //seq_n = ntohl(tcp->th_seq);
-    if((tcp->th_flags & TH_SYN) && (tcp->th_flags & TH_ACK))
+    if((tcp->th_flags & TH_SYN) && (tcp->th_flags & TH_ACK) && !(tcp->th_flags & TH_RST))
     {
         u_int32_t seq_n = ntohl(tcp->th_seq);
         //printf("Sequence num is: %u\n", seq_n);
@@ -200,15 +200,12 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
         exit(1);
     }
 
-    send_data(&sock_raw, source_ip, dst_ip, source_port, seq, ntohl(tcph.th_ack), argv);
-
-    //printf("Syn_Ack packet has been sent out!\n");
-
+    send_data(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
 }
 
 void send_data(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
-    /*struct ip iph;
+    struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
@@ -217,8 +214,9 @@ void send_data(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     pkt_data = (char *) malloc(60);
 
     uint8_t *packet;
+    packet = malloc(sizeof(u_int8_t));
 
-    sprintf(pkt_data, "GET / HTTP/1.1\r\nHost: %s\r\n\r\n", argv[1]);
+    sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", argv[2], argv[1]);
 
     int pkt_data_len = strlen(pkt_data);
 
@@ -231,16 +229,16 @@ void send_data(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     iph.ip_ttl = 64;
     iph.ip_p = IPPROTO_TCP;
     iph.ip_sum = 0;
-    iph.ip_src.s_addr = source_ip;
-    iph.ip_dst.s_addr = dst_ip;
+    iph.ip_src.s_addr = *source_ip;
+    iph.ip_dst.s_addr = *dst_ip;
     iph.ip_sum = csum((unsigned short *) pkt_data, iph.ip_len >> 1);
 
     memcpy(packet, &iph, sizeof(iph));
 
     tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
-    tcph.th_seq = htonl(ack);
-    tcph.th_ack = htonl(seq + 1);
+    tcph.th_seq = htonl(seq + 1);
+    tcph.th_ack = htonl(ack);
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_ACK;
@@ -256,18 +254,27 @@ void send_data(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     dest.sin_family = AF_INET;
     dest.sin_addr.s_addr = iph.ip_dst.s_addr;
 
-    //int one = 1;
-
-    //IP_HDRINCL tells the kernel that headers are included
-    //if(setsockopt(*sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
-    //{
-    //    fprintf(stderr, "Error setting up setsockopt!\n");
-    //    exit(1);
-    //}
-
     if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
     {
-        perror("Failed to send syn_ack packet!\n");
+        perror("Failed to send HTTP Get request packet!\n");
         exit(1);
-    }*/
+    }
+
+    sleep(10);
+    sprintf(pkt_data, "X-a: b\r\n");
+
+    for(int i = 0; i < 10; i++)
+    {
+        //Seq numbers need to be changed for every packet!
+        memcpy(packet + sizeof(iph) + sizeof(tcph), pkt_data, strlen(pkt_data));
+
+        if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
+        {
+            perror("Failed to send keepalive packet!\n");
+            exit(1);
+        }
+
+    }
+
+
 }
