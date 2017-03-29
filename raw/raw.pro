@@ -4,7 +4,9 @@ CONFIG -= app_bundle
 CONFIG -= qt
 LIBS += -lpcap
 SOURCES += main.c \
-    handshake.c
+    handshake.c \
+    checksum.c
 
 HEADERS += \
-    handshake.h
+    handshake.h \
+    checksum.h

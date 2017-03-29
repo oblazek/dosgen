@@ -15,6 +15,8 @@ trafgen_wrapper.o: trafgen_wrapper.c trafgen_wrapper.h trafgen_configs.h libtraf
 libtrafgen.a:
 	(cd trafgen; make trafgen && cp libtrafgen.a ../)
 
+libarping.a: arping/src/arping.o
+	(cd arping; ./configure; make; ar rcs $@ $^)
 
 # DoSgen
 dosgen: libdos.a dosgen.c

@@ -7,6 +7,7 @@
 #include <errno.h> //strerr
 #include <netdb.h> //NI_MAXHOST, NI_NUMERICHOST
 #include <ifaddrs.h> //getifaddrs func
+#include <time.h>
 
 #include "handshake.h"
 
@@ -18,7 +19,10 @@ int main(int argc, char *argv[])
     int sock_raw;
     struct in_addr dst_ip;
 
-    int source_port = 55559;
+    //For every time rand func is called, be sure to generate different result
+    srand(time(NULL));
+    //I want source ports to be in range 50000-59999
+    u_int16_t source_port = (rand() % 10000) + 50000;
     char source_ip[20] = "";
 
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
@@ -94,7 +98,7 @@ int main(int argc, char *argv[])
     }
 //*****************END OF GET LOCAL IP******************
 
-    //strcpy(source_ip, "10.0.0.12");
+    strcpy(source_ip, "10.0.0.6");
 
     printf("Local ip is: %s\n", source_ip);
 

@@ -437,7 +437,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14'
+ac_pwd='/home/blazeond/Documents/Programming/dosgen/dosgen/arping'
 srcdir='.'
 INSTALL='/usr/bin/install -c'
 MKDIR_P='/bin/mkdir -p'
@@ -655,12 +655,12 @@ S["mkdir_p"]="/bin/mkdir -p"
 S["MKDIR_P"]="/bin/mkdir -p"
 S["INSTALL_STRIP_PROGRAM"]="$(install_sh) -c -s"
 S["STRIP"]=""
-S["install_sh"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/install-sh"
-S["MAKEINFO"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/missing --run makeinfo"
-S["AUTOHEADER"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/missing --run autoheader"
-S["AUTOMAKE"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/missing --run automake-1.11"
-S["AUTOCONF"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/missing --run autoconf"
-S["ACLOCAL"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/arping-2.14/missing --run aclocal-1.11"
+S["install_sh"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/install-sh"
+S["MAKEINFO"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/missing --run makeinfo"
+S["AUTOHEADER"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/missing --run autoheader"
+S["AUTOMAKE"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/missing --run automake-1.11"
+S["AUTOCONF"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/missing --run autoconf"
+S["ACLOCAL"]="${SHELL} /home/blazeond/Documents/Programming/dosgen/dosgen/arping/missing --run aclocal-1.11"
 S["VERSION"]="2.14"
 S["PACKAGE"]="arping"
 S["CYGPATH_W"]="echo"
