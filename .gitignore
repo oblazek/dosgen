@@ -1,6 +1,7 @@
 **.[oa]
 build-raw-Desktop-Debug/
 dosgen
+raw/ddosgen
 raw/raw.pro.user
 raw/raw
 tmp.cfg

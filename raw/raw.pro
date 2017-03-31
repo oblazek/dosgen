@@ -1,8 +1,9 @@
 TEMPLATE = app
-CONFIG += console thread
+CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
-LIBS += -lpcap
+LIBS += -L$$PWD/./ -larping -lpcap -lpthread
+
 SOURCES += main.c \
     handshake.c \
     checksum.c

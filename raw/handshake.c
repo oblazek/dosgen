@@ -5,7 +5,7 @@ int start_sniffing(char *argv[])
     pcap_t *descr;
     char filter[30];
     sprintf(filter, "host %s and port 80", argv[1]);
-    char *dev = "eth0";
+    char *dev = "wlan0";
     char error_buffer[PCAP_ERRBUF_SIZE];
 
     bpf_u_int32 net;
@@ -89,9 +89,7 @@ void packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, const u_ch
     {
         u_int32_t seq_n = ntohl(tcp->th_seq);
         //printf("Sequence num is: %u\n", seq_n);
-
         send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, argv);
-
     }
 }
 

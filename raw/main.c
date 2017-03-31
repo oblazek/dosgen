@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     }
 //*****************END OF GET LOCAL IP******************
 
-    strcpy(source_ip, "10.0.0.6");
+    strcpy(source_ip, "192.168.0.140");
 
     printf("Local ip is: %s\n", source_ip);
 
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
     int th1ret = 0;
     pthread_t thread1;
 
-    //Creating thread with receive_ack() function call, will start receiving packets and process them
+    //Creating thread with start_sniffing() function call, will start receiving packets and process them
     if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
     {
         fprintf(stderr, "Failed to create a new thread.\n");
@@ -179,6 +179,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(1);
     }
+    int arg_count = 7;
+    char *args[] = {"-c1", "-A", "-s", source_ip, "-I", "wlan0", "192.168.0.1"};
+    arping_main(arg_count, args);
 
     //printf("Syn has been sent out.\n");
     pthread_join(thread1, NULL);
