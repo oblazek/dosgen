@@ -10,8 +10,9 @@ Implemented are following attacks:	- SYN flood
 									- ICMP flood  
 									- ARP flood  
 									- DNS flood	 
-									- DHCP starvation  
-                                    - Slowloris
+                                    - DHCP starvation  
+                                    - Slowloris 
+
 Attack now being implemented:       - HTTP GET
 
 

