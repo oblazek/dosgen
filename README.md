@@ -1,8 +1,12 @@
-Trafgen part cloned from https://github.com/netsniff-ng/netsniff-ng.git and edited to be used as a standalone tool for DoS attacks. <br /> 
+<img src=https://img.shields.io/travis/rust-lang/rust.svg></img>
+<img src=https://img.shields.io/badge/gcc-5.4.0-brightgreen.svg></img>
+<img src=https://img.shields.io/badge/qmake-2.01a-brightgreen.svg></img>
 
-Tool is using raw sockets and libpcap library for receiving and processing packets, got from server. 
+Tool currently made of two separate parts. Trafgen part cloned from https://github.com/netsniff-ng/netsniff-ng.git and edited to be used as a standalone tool for DoS attacks. 
 
-For purposes of arp injection, iputils-arping tool is used as a statically linked library.
+Raw project is the second part which uses pthreads, raw sockets and libpcap library.<br /> 
+
+For purposes of arp injection, iputils-arping tool is used.
 
 Implemented are following attacks:	- SYN flood  
 									- RST flood  
