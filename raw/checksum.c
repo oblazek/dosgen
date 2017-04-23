@@ -1,27 +1,27 @@
 #include "checksum.h"
 
-unsigned short in_cksum(unsigned short *addr, int len)
-{
-    int nleft = len;
-    int sum = 0;
-    unsigned short *w = addr;
-    unsigned short answer = 0;
-
-    while (nleft > 1) {
-        sum += *w++;
-        nleft -= 2;
-    }
-
-    if (nleft == 1) {
-        *(unsigned char *) (&answer) = *(unsigned char *) w;
-        sum += answer;
-    }
-
-    sum = (sum >> 16) + (sum & 0xFFFF);
-    sum += (sum >> 16);
-    answer = ~sum;
-    return (answer);
-}
+//unsigned short in_cksum(unsigned short *addr, int len)
+//{
+//    int nleft = len;
+//    int sum = 0;
+//    unsigned short *w = addr;
+//    unsigned short answer = 0;
+//
+//    while (nleft > 1) {
+//        sum += *w++;
+//        nleft -= 2;
+//    }
+//
+//    if (nleft == 1) {
+//        *(unsigned char *) (&answer) = *(unsigned char *) w;
+//        sum += answer;
+//    }
+//
+//    sum = (sum >> 16) + (sum & 0xFFFF);
+//    sum += (sum >> 16);
+//    answer = ~sum;
+//    return (answer);
+//}
 //tcphdr.th_sum = tcp4_checksum (iphdr, tcphdr, (uint8_t *) payload, payloadlen);
 
 unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len)
@@ -39,7 +39,8 @@ unsigned short tcp_csum(int src, int dst, unsigned short *addr, int len)
 
     memcpy(&(buf.tcp), addr, len);
 
-    ans = in_cksum((unsigned short *)&buf, 12 + len); //12 + len
+    //ans = in_cksum((unsigned short *)&buf, 12 + len); //12 + len
+    ans = chksum((unsigned short *)&buf, 12 + len); //12 + len
     //TODO --- print out checksum in hexa for every sent out packet
     return ans;
 }

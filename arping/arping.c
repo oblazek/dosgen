@@ -995,8 +995,16 @@ static void set_device_broadcast(struct device *dev, unsigned char *ba, size_t b
 }
 
 int
-main(int argc, char **argv)
+arping_main(int argc, char **argv)
 {
+    //{"-q", "-A", "-I", dev, "-s", "192.168.56.150", "192.168.56.102"};
+    printf("Arguments inside arping are:\n");
+    for(int i = 0; i < argc; i++)
+    {
+        printf("%s ", argv[i]);
+    }
+    printf("\n");
+
 	int socket_errno;
 	int ch;
 

