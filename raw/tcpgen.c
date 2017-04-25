@@ -54,12 +54,6 @@ int tcp_gen(int argc, char *argv[])
         return 1;
     }
 
-    //char *args[] = {"-q", "-A", "-I", ip_array[3], "-s", ip_array[4], "192.168.56.102"};
-    //
-    //int ret = system("/usr/bin/arping -q -A -I vboxnet0 -s 192.168.56.150 192.168.56.102");
-    //if (WIFSIGNALED(ret) && (WTERMSIG(ret) == SIGINT || WTERMSIG(ret) == SIGQUIT))
-    //   return 0;
-
     char *params[] = {ip_array[3], ip_array[4]};
     
     pthread_t arping_th;
@@ -72,8 +66,8 @@ int tcp_gen(int argc, char *argv[])
     if ( pthread_detach(arping_th) == 0 )
         printf("Arping thread detached successfully !!!\n");
 
-    sleep(1);
-    for(int i = 0; i < 50; i++)
+    sleep(1); //argv[4] == connections [-C], passed to ./dosgen
+    for(int i = 0; i < atoi(argv[4]); i++)
     {
         //sleep(1);
         start_tcp_attack(ip_array);

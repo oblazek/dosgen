@@ -5,7 +5,7 @@ LIBS=-L. -ldos -ltrafgen -lnl-3 -lnl-genl-3 -lnl-3 -ltcpgen -lpcap -lm -lpthread
 all: libdos.a libtcpgen.a dosgen 
 
 # DoSgen
-dosgen:  libdos.a dosgen.c
+dosgen:  libdos.a libtcpgen.a dosgen.c
 	$(CC) $(CFLAGS) -o $@ dosgen.c $(LIBS)
 
 # Library
