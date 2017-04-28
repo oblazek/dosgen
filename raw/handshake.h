@@ -24,7 +24,7 @@ struct attack_params {
         const u_char *a_packet;
 };
 //int send_syn(int sock_raw, char *source_ip, struct in_addr dst_ip, u_int16_t *source_port, char *argv[]);
-void start_sniffing(char *argv[]);
+void* start_sniffing(char *argv[]);
 void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[]);
 int packet_receive(u_char *argv[], const struct pcap_pkthdr *pkthdr, u_char *packet);
 void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[]);

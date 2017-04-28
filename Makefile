@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g
+CFLAGS=-g -Wall -Werror#-O1 
 LIBS=-L. -ldos -ltrafgen -lnl-3 -lnl-genl-3 -lnl-3 -ltcpgen -lpcap -lm -lpthread -z muldefs
 
 all: libdos.a libtcpgen.a dosgen 
@@ -19,7 +19,7 @@ libtrafgen.a:
 	(cd trafgen; make trafgen && cp libtrafgen.a ../)
 
 libtcpgen.a:
-	(cd raw; gcc -c tcpgen.c handshake.c checksum.c; ar rcs -o libtcpgen.a tcpgen.o handshake.o checksum.o; cp libtcpgen.a ../)
+	(cd raw; $(CC) $(CFLAGS) -c tcpgen.c handshake.c checksum.c; ar rcs -o libtcpgen.a tcpgen.o handshake.o checksum.o; cp libtcpgen.a ../)
 
 clean:
 	rm *.o

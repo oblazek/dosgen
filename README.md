@@ -16,9 +16,9 @@ Implemented are following attacks:	- SYN flood
 									- DNS flood	 
                                     - DHCP starvation  
                                     - Slow loris 
-                                    - HTTP GET
-                                    - Sockstress
-                                    - Slow read
+                                    - HTTP GET  
+                                    - Sockstress  
+                                    - Slow read  
 
 
 

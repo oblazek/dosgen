@@ -11,7 +11,7 @@ void setup_optarg()
 Originally took over from http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/, then edited to:
 Funkce pro zmenu DNS jmena: "www.google.com" na '0x03,"www",0x06,"google",0x03,"com"'
 Puvodne prevzata z vyse uvedeneho serveru, nasledne zmenena na: */
-void ChangetoDnsNameFormat(unsigned char* dns,const unsigned char* host)
+void ChangetoDnsNameFormat(char* dns, const char* host)
 {
     int lock = 0 , i;
     strcat((char*)host,".");
@@ -51,6 +51,7 @@ char * prepare_syn(const char *src_ip, const char *src_port, const char *dst_ip,
     fprintf(cfg, trafgen_syn_cfg, 40+len, src_ip, dst_ip, src_port, dst_port, len);
 	// Closing tmp file/Zavreni docasneho souboru
     fclose(cfg);
+    return 0;
 }
 
 char * prepare_rst(const char *src_ip, const char *src_port, const char *dst_ip, const char *dst_port, const unsigned len)
@@ -63,6 +64,7 @@ char * prepare_rst(const char *src_ip, const char *src_port, const char *dst_ip,
     }
     fprintf(cfg, trafgen_rst_cfg, 40+len, src_ip, dst_ip, src_port, dst_port, len);
     fclose(cfg);
+    return 0;
 }
 
 char * prepare_udp(const char *src_ip, const char *src_port, const char *dst_ip, const char *dst_port, const unsigned len)
@@ -76,7 +78,7 @@ char * prepare_udp(const char *src_ip, const char *src_port, const char *dst_ip,
 
     fprintf(cfg, trafgen_udp_cfg, 28+len, src_ip, dst_ip, src_port, dst_port, 8+len, len);
     fclose(cfg);
-
+    return 0;
 }
 
 char * prepare_icmp(const char *src_ip, const char *dst_ip, const unsigned len)
@@ -90,7 +92,7 @@ char * prepare_icmp(const char *src_ip, const char *dst_ip, const unsigned len)
 
     fprintf(cfg, trafgen_icmp_cfg, 28+len, src_ip, dst_ip, 42+len, len);
     fclose(cfg);
-
+    return 0;
 
 }
 
@@ -104,11 +106,11 @@ char * prepare_arp(const char *src_ip, const char *dst_ip, const unsigned len)
     }
     fprintf(cfg, trafgen_arp_cfg, src_ip, dst_ip, len);
     fclose(cfg);
-
+    return 0;
 
 }
 
-char * prepare_dns(const char *src_ip, const char *src_port, const char *dst_ip,  const unsigned len, const char *dns_name)
+char * prepare_dns(const char *src_ip, const char *src_port, const char *dst_ip,  const unsigned len, char *dns_name)
 {
     char *cfg_file_name = "tmp.cfg";
     FILE *cfg = fopen(cfg_file_name, "a");
@@ -122,7 +124,7 @@ char * prepare_dns(const char *src_ip, const char *src_port, const char *dst_ip,
 	
     fprintf(cfg, trafgen_dns_cfg, 45+strlen(dns_name)+len, src_ip, dst_ip, src_port, 25+strlen(dns_name)+len, dns_buf, len);
     fclose(cfg);
-
+    return 0;
 }
 
 char * prepare_dhcp(const unsigned len)
@@ -135,7 +137,7 @@ char * prepare_dhcp(const unsigned len)
     }
     fprintf(cfg, trafgen_dhcp_cfg, 272+len, 252+len, len);
     fclose(cfg);
-
+    return 0;
 
 }
 
@@ -150,7 +152,7 @@ char * prepare_http_get(const char *src_ip, const char *dst_ip, const char *host
 	printf("hostname : %s\n\n", host_name);
     fprintf(cfg, trafgen_http_get_cfg, 64+strlen(host_name)+len, src_ip, dst_ip, host_name, len); //64 is for IP header + TCP header + HTTP parameters
 	fclose(cfg);
-
+    return 0;
 }
 
 

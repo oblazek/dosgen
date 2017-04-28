@@ -48,7 +48,7 @@ int tcp_gen(int argc, char *argv[])
     pthread_t thread1;
 
     //Creating thread with start_sniffing() function call, will start receiving packets and process them
-    if(pthread_create(&thread1, NULL, (void *) start_sniffing, argv) < 0)
+    if(pthread_create(&thread1, NULL, (void *)start_sniffing, argv) < 0)
     {
         fprintf(stderr, "Failed to create a new thread.\n");
         return 1;
